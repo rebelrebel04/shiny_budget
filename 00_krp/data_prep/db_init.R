@@ -11,7 +11,8 @@ conn <- dbConnect(
 # Create a query to prepare the 'mtcars' table with additional 'uid', 'id',
 # & the 4 created/modified columns
 create_rules_query = "CREATE TABLE rules (
-  key                             TEXT PRIMARY KEY,
+  uid                             TEXT PRIMARY KEY,
+  key                             TEXT,
   rule                            TEXT,
   created_at                      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_by                      TEXT,
@@ -28,12 +29,13 @@ dbExecute(conn, create_rules_query)
 # Read in the RDS file created in 'data_prep.R'
 dat <- readRDS("00_krp/data_prep/data/regex_tester/rules.RDS")
 
-# # add uid column to the `dat` data frame
-# dat$uid <- uuid::UUIDgenerate(n = nrow(dat))
-# 
-# # reorder the columns
-# dat <- dat %>%
-#   select(uid, everything())
+# add uid column to the `dat` data frame
+dat$uid <- uuid::UUIDgenerate(n = nrow(dat))
+
+# reorder the columns
+dat <- 
+  dat %>%
+  select(uid, everything())
 
 # Fill in the SQLite table with the values from the RDS file
 DBI::dbWriteTable(

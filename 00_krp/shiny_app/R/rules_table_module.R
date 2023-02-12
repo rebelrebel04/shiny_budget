@@ -1,6 +1,6 @@
-#' Cars Table Module UI
+#' Rules Table Module UI
 #'
-#' The UI portion of the module for displaying the mtcars datatable
+#' The UI portion of the module for displaying the rules datatable
 #'
 #' @importFrom shiny NS tagList fluidRow column actionButton tags
 #' @importFrom DT DTOutput
@@ -10,7 +10,7 @@
 #'
 #' @return a \code{shiny::\link[shiny]{tagList}} containing UI elements
 #'
-cars_table_module_ui <- function(id) {
+rules_table_module_ui <- function(id) {
   ns <- NS(id)
 
   tagList(
@@ -18,7 +18,7 @@ cars_table_module_ui <- function(id) {
       column(
         width = 2,
         actionButton(
-          ns("add_car"),
+          ns("add_rule"),
           "Add",
           class = "btn-success",
           style = "color: #fff;",
@@ -32,21 +32,21 @@ cars_table_module_ui <- function(id) {
     fluidRow(
       column(
         width = 12,
-        title = "Motor Trend Car Road Tests",
-        DTOutput(ns('car_table')) %>%
+        title = "Rules",
+        DTOutput(ns('rules_table')) %>%
           withSpinner(),
         tags$br(),
         tags$br()
       )
     ),
-    tags$script(src = "cars_table_module.js"),
-    tags$script(paste0("cars_table_module_js('", ns(''), "')"))
+    tags$script(src = "rules_table_module.js"),
+    tags$script(paste0("rules_table_module_js('", ns(''), "')"))
   )
 }
 
-#' Cars Table Module Server
+#' Rules Table Module Server
 #'
-#' The Server portion of the module for displaying the mtcars datatable
+#' The Server portion of the module for displaying the rules datatable
 #'
 #' @importFrom shiny reactive reactiveVal observeEvent req callModule eventReactive
 #' @importFrom DT renderDT datatable replaceData dataTableProxy
@@ -58,18 +58,19 @@ cars_table_module_ui <- function(id) {
 #'
 #' @return None
 
-cars_table_module <- function(input, output, session) {
+rules_table_module <- function(input, output, session) {
 
-  # trigegr to reload data from the "mtcars" table
-  session$userData$mtcars_trigger <- reactiveVal(0)
+  # trigger to reload data from the "rules" table
+  session$userData$rules_trigger <- reactiveVal(0)
 
-  # Read in "mtcars" table from the database
-  cars <- reactive({
-    session$userData$mtcars_trigger()
+  # Read in "rules" table from the database
+  rules <- reactive({
+    session$userData$rules_trigger()
 
     out <- NULL
     tryCatch({
-      out <- conn %>%
+      out <- 
+        conn %>%
         tbl('rules') %>%
         collect() %>%
         mutate(
@@ -78,7 +79,6 @@ cars_table_module <- function(input, output, session) {
         ) %>%
         arrange(desc(modified_at))
     }, error = function(err) {
-
 
       msg <- "Database Connection Error"
       # print `msg` so that we can find it in the logs
@@ -94,10 +94,10 @@ cars_table_module <- function(input, output, session) {
   })
 
 
-  car_table_prep <- reactiveVal(NULL)
+  rules_table_prep <- reactiveVal(NULL)
 
-  observeEvent(cars(), {
-    out <- cars()
+  observeEvent(rules(), {
+    out <- rules()
 
     ids <- out$uid
 
@@ -111,40 +111,43 @@ cars_table_module <- function(input, output, session) {
     })
 
     # Remove the `uid` column. We don't want to show this column to the user
-    out <- out %>%
+    out <- 
+      out %>%
       select(-uid)
 
-    # Set the Action Buttons row to the first column of the `mtcars` table
-    out <- cbind(
-      tibble(" " = actions),
-      out
-    )
+    # Set the Action Buttons row to the first column of the `rules` table
+    out <- 
+      cbind(
+        tibble(" " = actions),
+        out
+      )
 
-    if (is.null(car_table_prep())) {
+    if (is.null(rules_table_prep())) {
       # loading data into the table for the first time, so we render the entire table
       # rather than using a DT proxy
-      car_table_prep(out)
+      rules_table_prep(out)
 
     } else {
 
       # table has already rendered, so use DT proxy to update the data in the
       # table without rerendering the entire table
-      replaceData(car_table_proxy, out, resetPaging = FALSE, rownames = FALSE)
+      replaceData(rules_table_proxy, out, resetPaging = FALSE, rownames = FALSE)
 
     }
   })
 
-  output$car_table <- renderDT({
-    req(car_table_prep())
-    out <- car_table_prep()
+  output$rules_table <- renderDT({
+    req(rules_table_prep())
+    out <- rules_table_prep()
 
     datatable(
       out,
       rownames = FALSE,
-      colnames = c('Model', 'Miles/Gallon', 'Cylinders', 'Displacement (cu.in.)',
-                   'Horsepower', 'Rear Axle Ratio', 'Weight (lbs)', '1/4 Mile Time',
-                   'Engine', 'Transmission', 'Forward Gears', 'Carburetors', 'Created At',
-                   'Created By', 'Modified At', 'Modified By'),
+      colnames = c("key", "rule", 'Created At', 'Created By', 'Modified At', 'Modified By'),
+      # colnames = c('Model', 'Miles/Gallon', 'Cylinders', 'Displacement (cu.in.)',
+      #              'Horsepower', 'Rear Axle Ratio', 'Weight (lbs)', '1/4 Mile Time',
+      #              'Engine', 'Transmission', 'Forward Gears', 'Carburetors', 'Created At',
+      #              'Created By', 'Modified At', 'Modified By'),
       selection = "none",
       class = "compact stripe row-border nowrap",
       # Escape the HTML in all except 1st column (which has the buttons)
@@ -157,7 +160,7 @@ cars_table_module <- function(input, output, session) {
           list(
             extend = "excel",
             text = "Download",
-            title = paste0("mtcars-", Sys.Date()),
+            title = paste0("rules-", Sys.Date()),
             exportOptions = list(
               columns = 1:(length(out) - 1)
             )
@@ -179,43 +182,43 @@ cars_table_module <- function(input, output, session) {
 
   })
 
-  car_table_proxy <- DT::dataTableProxy('car_table')
+  rules_table_proxy <- DT::dataTableProxy('rules_table')
 
   callModule(
-    car_edit_module,
-    "add_car",
-    modal_title = "Add Car",
-    car_to_edit = function() NULL,
-    modal_trigger = reactive({input$add_car})
+    rule_edit_module,
+    "add_rule",
+    modal_title = "Add Rule",
+    rule_to_edit = function() NULL,
+    modal_trigger = reactive({input$add_rule})
   )
 
-  car_to_edit <- eventReactive(input$car_id_to_edit, {
+  rule_to_edit <- eventReactive(input$rule_id_to_edit, {
 
-    cars() %>%
-      filter(uid == input$car_id_to_edit)
+    rules() %>%
+      filter(uid == input$rule_id_to_edit)
   })
 
   callModule(
-    car_edit_module,
-    "edit_car",
-    modal_title = "Edit Car",
-    car_to_edit = car_to_edit,
-    modal_trigger = reactive({input$car_id_to_edit})
+    rule_edit_module,
+    "edit_rule",
+    modal_title = "Edit Rule",
+    rule_to_edit = rule_to_edit,
+    modal_trigger = reactive({input$rule_id_to_edit})
   )
 
-  car_to_delete <- eventReactive(input$car_id_to_delete, {
+  rule_to_delete <- eventReactive(input$rule_id_to_delete, {
 
-    cars() %>%
-      filter(uid == input$car_id_to_delete) %>%
+    rules() %>%
+      filter(uid == input$rule_id_to_delete) %>%
       as.list()
   })
 
   callModule(
-    car_delete_module,
-    "delete_car",
-    modal_title = "Delete Car",
-    car_to_delete = car_to_delete,
-    modal_trigger = reactive({input$car_id_to_delete})
+    rule_delete_module,
+    "delete_rule",
+    modal_title = "Delete Rule",
+    rule_to_delete = rule_to_delete,
+    modal_trigger = reactive({input$rule_id_to_delete})
   )
 
 }

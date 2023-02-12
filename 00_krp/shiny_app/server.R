@@ -6,7 +6,7 @@ function(input, output, session) {
 
   # Call the server function portion of the `cars_table_module.R` module file
   callModule(
-    cars_table_module,
-    "cars_table"
+    rules_table_module,
+    "rules_table"
   )
 }
