@@ -1,4 +1,0 @@
-default:
-  app_name: "03_traditional_polished"
-  db:
-    dbname: 'data/mtcars.sqlite3'
