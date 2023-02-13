@@ -12,11 +12,10 @@
 #'
 rules_table_module_ui <- function(id) {
   ns <- NS(id)
-
+  
   tagList(
-    fluidRow(
-      column(
-        width = 2,
+    sidebarLayout(
+      sidebarPanel(
         actionButton(
           ns("add_rule"),
           "Add",
@@ -25,18 +24,43 @@ rules_table_module_ui <- function(id) {
           icon = icon('plus'),
           width = '100%'
         ),
-        tags$br(),
-        tags$br()
-      )
-    ),
-    fluidRow(
-      column(
-        width = 12,
-        title = "Rules",
+        selectInput(
+          ns("select_key"),
+          label = "Key: ",
+          choices = NULL
+        ),
+        textOutput(
+          ns("label_rule")
+        ),
+        actionButton(
+          ns("cmd_edit_rule"),
+          "Edit",
+          class = "btn btn-primary btn-sm edit_btn",
+          style = "color: #fff;",
+          icon = icon('pencil'),
+          id = 1
+        ),        
+        actionButton(
+          ns("cmd_delete_rule"),
+          "Delete",
+          class = "btn btn-danger btn-sm delete_btn",
+          style = "color: #fff;",
+          icon = icon('trash')
+        )
+        # tags$div(
+        #   class="btn-group", style="width: 75px;", role="group", 'aria-label'="Basic example", 
+        #   tags$button(class="btn btn-primary btn-sm edit_btn", 'data-toggle'="tooltip", 'data-placement'="top", title="Edit", id = "4127d505-ea58-440b-b3e7-968ea77c2612", style="margin: 0", tags$i(class="fa fa-pencil-square-o")),
+        #   tags$button(class="btn btn-danger btn-sm delete_btn", 'data-toggle'="tooltip", 'data-placement'="top", title="Delete", id = "4127d505-ea58-440b-b3e7-968ea77c2612", style="margin: 0", tags$i(class="fa fa-trash-o"))
+        # )
+        # tags$br(),
+        # tags$br()
+      ),
+      
+      mainPanel(
         DTOutput(ns('rules_table')) %>%
-          withSpinner(),
-        tags$br(),
-        tags$br()
+          withSpinner()
+        # tags$br(),
+        # tags$br()
       )
     ),
     tags$script(src = "rules_table_module.js"),
@@ -62,7 +86,7 @@ rules_table_module <- function(input, output, session) {
 
   # trigger to reload data from the "rules" table
   session$userData$rules_trigger <- reactiveVal(0)
-
+  
   # Read in "rules" table from the database
   rules <- reactive({
     session$userData$rules_trigger()
@@ -92,8 +116,55 @@ rules_table_module <- function(input, output, session) {
 
     out
   })
-
-
+  
+  # Populate the key selection choices based on the db
+  observeEvent(rules(), {
+    updateSelectInput(session, "select_key", choices = rules()$key)
+  })
+  
+  #///how to set the 'id' of the button to the uid of the selected
+  #   key, so the modal knows which key to edit/delete?
+  # input$rule_id_to_edit <- eventReactive(input$select_key, {
+  #   rules() %>% 
+  #     filter(key == input$select_key) %>% 
+  #     pull(uid)
+  # })
+  observeEvent(input$select_key, {
+    updateActionButton(
+      session, 
+      inputId = "cmd_edit_rule", 
+      label = rules() %>% 
+        filter(key == input$select_key) %>%
+        pull(uid)
+    )
+  })
+  
+  # Populate the regex rule label for the selected key
+  output$label_rule <-
+    renderText({
+      rules() %>% 
+        filter(key == input$select_key) %>% 
+        pull(rule)
+        # pull(uid)      
+    })
+  
+  # # Update the rule regex in the rules_df when clicking Update Rule button
+  # observeEvent(input$cmd_edit_rule, {
+  #   inFile <- input$file_rules
+  #   if (is.null(inFile))
+  #     return(NULL)
+  #   # Update the regex for selected rule    
+  #   read.csv(inFile$datapath, header = TRUE) %>% 
+  #     mutate(
+  #       rule = case_when(
+  #         key == input$select_rule ~ input$rule_text,
+  #         TRUE ~ rule
+  #       )
+  #     ) %>% 
+  #     write.csv(inFile$datapath)
+  # })
+  
+  
   rules_table_prep <- reactiveVal(NULL)
 
   observeEvent(rules(), {
