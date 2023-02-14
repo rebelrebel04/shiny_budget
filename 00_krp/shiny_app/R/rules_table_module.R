@@ -16,18 +16,11 @@ rules_table_module_ui <- function(id) {
   tagList(
     sidebarLayout(
       sidebarPanel(
-        titlePanel("Settings"),
-        actionButton(
-          ns("add_rule"),
-          "Add Rule",
-          class = "btn-success",
-          style = "color: #fff;",
-          icon = icon('plus'),
-          width = '100%'
-        ),
+        titlePanel("Rules Data"),
+        tags$div(HTML("<i>Connected to 'rules' database</i>")),
         selectInput(
           ns("select_key"),
-          label = "Key: ",
+          label = "Select a key to categorize transactions: ",
           choices = NULL
         ),
         textOutput(
@@ -52,13 +45,29 @@ rules_table_module_ui <- function(id) {
           style = "color: #fff;",
           icon = icon('trash')
         ),
-        tags$br(),        
-        tags$br(),                
+        actionButton(
+          ns("add_rule"),
+          "New",
+          class = "btn btn-sm btn-success",
+          style = "color: #fff;",
+          icon = icon('plus')
+          # width = '100%'
+        ),
+        tags$br(),
+        tags$br(),
+
+        titlePanel("Transaction Data"),
+        tags$div(HTML("<i>Upload transaction data as csv</i>")),
         fileInput(
-          ns("file_txs"), 
-          label = "Upload transaction data to test:",
+          ns("file_txs"),
+          label = "csv file: ",
           accept = ".csv"
-        ),         
+        ),
+        selectInput(
+        	ns("select_weight"),
+        	label = "Weight: ",
+        	choices = "(Unweighted)"
+        )
         # tags$div(
         #   class="btn-group", style="width: 75px;", role="group", 'aria-label'="Basic example",
         #   tags$button(class="btn btn-primary btn-sm edit_btn", 'data-toggle'="tooltip", 'data-placement'="top", title="Edit", id = "4127d505-ea58-440b-b3e7-968ea77c2612", style="margin: 0", tags$i(class="fa fa-pencil-square-o")),
@@ -71,13 +80,13 @@ rules_table_module_ui <- function(id) {
       mainPanel(
         fluidRow(
           column(
-            6, 
-            titlePanel("Matched"), 
+            6,
+            titlePanel("Matched"),
             tableOutput(ns("txs_matched"))
           ),
           column(
-            6, 
-            titlePanel("Unmatched"), 
+            6,
+            titlePanel("Unmatched"),
             tableOutput(ns("txs_unmatched"))
           )
         )
@@ -145,15 +154,15 @@ rules_table_module <- function(input, output, session) {
   # Create a reactive variable to store currently selected rule ID
   rule_uid_to_edit <- reactiveVal(NULL)
 
-  # Make the uid reactive to the the selected key 
+  # Make the uid reactive to the the selected key
   observeEvent(input$select_key, {
   	rules() %>%
   		filter(key == input$select_key) %>%
   		pull(uid) %>%
   		rule_uid_to_edit()
   })
-  
-  # Make the (regex) rule reactive to the the selected key 
+
+  # Make the (regex) rule reactive to the the selected key
   # OR any updates to the 'rules' db
   rule_regex <- eventReactive({
     input$select_key
@@ -165,7 +174,7 @@ rules_table_module <- function(input, output, session) {
       pull(rule)
   })
 
-  
+
   # Populate the key selection choices based on the db
   observeEvent(rules(), {
     updateSelectInput(session, "select_key", choices = rules()$key)
@@ -179,7 +188,7 @@ rules_table_module <- function(input, output, session) {
   # 	rule_uid_to_edit()
   # })
 
-  
+
   # Make the "txs" df reactive to the uploaded csv
   txs_df <- eventReactive(input$file_txs, {
     inFile <- input$file_txs
@@ -189,33 +198,50 @@ rules_table_module <- function(input, output, session) {
     #print(df)
     df
   }, ignoreNULL = TRUE, ignoreInit = TRUE)
-  
+
+  # Populate the weight selection choices based on the tx data
+  observeEvent(txs_df(), {
+  	choices <-
+  		txs_df() %>%
+  		select(where(is.numeric)) %>%
+  		names()
+  	updateSelectInput(session, "select_weight", choices = c("(Unweighted)", choices))
+  })
+
   # Make 'matched' and 'unmatched' tx dfs based on changes to
   # currently selected key OR 'rules' db
   txs_df_matched <- reactive({
-    txs_df() %>% 
-      filter(grepl(rule_regex(), Description, ignore.case = TRUE)) %>%
-      count(Description, sort = TRUE)
+  	txs_df() %>%
+  		filter(grepl(rule_regex(), Description, ignore.case = TRUE)) %>%
+  		mutate(
+  			.wt =	ifelse(input$select_weight == "(Unweighted)", 1, .data[[input$select_weight]])
+  		) %>%
+  		count(Description, wt = .wt, sort = TRUE) %>%
+  		mutate(pct = n / sum(n, na.rm = TRUE))
   })
-  
+
   txs_df_unmatched <- reactive({
-    txs_df() %>%
-      filter(!grepl(rule_regex(), Description, ignore.case = TRUE)) %>%
-      count(Description, sort = TRUE)
+  	txs_df() %>%
+  		filter(!grepl(rule_regex(), Description, ignore.case = TRUE)) %>%
+  		mutate(
+  			.wt =	ifelse(input$select_weight == "(Unweighted)", 1, .data[[input$select_weight]])
+  		) %>%
+  		count(Description, wt = .wt, sort = TRUE) %>%
+  		mutate(pct = n / sum(n, na.rm = TRUE))
   })
-  
+
   # Print the matched & unmatched txs for selected rule
   output$txs_matched <- renderTable(txs_df_matched(), striped = TRUE, hover = TRUE)
-  output$txs_unmatched <- renderTable(txs_df_unmatched(), striped = TRUE, hover = TRUE)  
-  
+  output$txs_unmatched <- renderTable(txs_df_unmatched(), striped = TRUE, hover = TRUE)
+
 
   # rules_table_prep <- reactiveVal(NULL)
-  # 
+  #
   # observeEvent(rules(), {
   #   out <- rules()
-  # 
+  #
   #   ids <- out$uid
-  # 
+  #
   #   actions <- purrr::map_chr(ids, function(id_) {
   #     paste0(
   #       '<div class="btn-group" style="width: 75px;" role="group" aria-label="Basic example">
@@ -224,37 +250,37 @@ rules_table_module <- function(input, output, session) {
   #       </div>'
   #     )
   #   })
-  # 
+  #
   #   # Remove the `uid` column. We don't want to show this column to the user
   #   out <-
   #     out %>%
   #     select(-uid)
-  # 
+  #
   #   # Set the Action Buttons row to the first column of the `rules` table
   #   out <-
   #     cbind(
   #       tibble(" " = actions),
   #       out
   #     )
-  # 
+  #
   #   if (is.null(rules_table_prep())) {
   #     # loading data into the table for the first time, so we render the entire table
   #     # rather than using a DT proxy
   #     rules_table_prep(out)
-  # 
+  #
   #   } else {
-  # 
+  #
   #     # table has already rendered, so use DT proxy to update the data in the
   #     # table without rerendering the entire table
   #     replaceData(rules_table_proxy, out, resetPaging = FALSE, rownames = FALSE)
-  # 
+  #
   #   }
   # })
-  # 
+  #
   # output$rules_table <- renderDT({
   #   req(rules_table_prep())
   #   out <- rules_table_prep()
-  # 
+  #
   #   datatable(
   #     out,
   #     rownames = FALSE,
@@ -294,9 +320,9 @@ rules_table_module <- function(input, output, session) {
   #       columns = c("created_at", "modified_at"),
   #       method = 'toLocaleString'
   #     )
-  # 
+  #
   # })
-  # 
+  #
   # rules_table_proxy <- DT::dataTableProxy('rules_table')
 
   callModule(
@@ -319,10 +345,10 @@ rules_table_module <- function(input, output, session) {
     rule_to_edit = rule_to_edit,
     modal_trigger = reactive({input$cmd_edit_rule})
   )
-  
+
   rule_to_delete <- reactive({
   	rules() %>%
-  		filter(key == input$select_key) %>% 
+  		filter(key == input$select_key) %>%
       as.list()
   })
 
