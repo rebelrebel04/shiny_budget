@@ -16,9 +16,10 @@ rules_table_module_ui <- function(id) {
   tagList(
     sidebarLayout(
       sidebarPanel(
+        titlePanel("Settings"),
         actionButton(
           ns("add_rule"),
-          "Add",
+          "Add Rule",
           class = "btn-success",
           style = "color: #fff;",
           icon = icon('plus'),
@@ -32,9 +33,10 @@ rules_table_module_ui <- function(id) {
         textOutput(
           ns("label_rule")
         ),
-        textOutput(
-        	ns("label_uid")
-        ),
+        # textOutput(
+        # 	ns("label_uid")
+        # ),
+        tags$br(),
         actionButton(
           ns("cmd_edit_rule"),
           "Edit",
@@ -49,7 +51,14 @@ rules_table_module_ui <- function(id) {
           class = "btn btn-danger btn-sm delete_btn",
           style = "color: #fff;",
           icon = icon('trash')
-        )
+        ),
+        tags$br(),        
+        tags$br(),                
+        fileInput(
+          ns("file_txs"), 
+          label = "Upload transaction data to test:",
+          accept = ".csv"
+        ),         
         # tags$div(
         #   class="btn-group", style="width: 75px;", role="group", 'aria-label'="Basic example",
         #   tags$button(class="btn btn-primary btn-sm edit_btn", 'data-toggle'="tooltip", 'data-placement'="top", title="Edit", id = "4127d505-ea58-440b-b3e7-968ea77c2612", style="margin: 0", tags$i(class="fa fa-pencil-square-o")),
@@ -60,14 +69,26 @@ rules_table_module_ui <- function(id) {
       ),
 
       mainPanel(
-        DTOutput(ns('rules_table')) %>%
-          withSpinner()
+        fluidRow(
+          column(
+            6, 
+            titlePanel("Matched"), 
+            tableOutput(ns("txs_matched"))
+          ),
+          column(
+            6, 
+            titlePanel("Unmatched"), 
+            tableOutput(ns("txs_unmatched"))
+          )
+        )
+        # DTOutput(ns('rules_table')) %>%
+        #   withSpinner()
         # tags$br(),
         # tags$br()
       )
-    ),
-    tags$script(src = "rules_table_module.js"),
-    tags$script(paste0("rules_table_module_js('", ns(''), "')"))
+    )
+    # tags$script(src = "rules_table_module.js"),
+    # tags$script(paste0("rules_table_module_js('", ns(''), "')"))
   )
 }
 
@@ -124,155 +145,159 @@ rules_table_module <- function(input, output, session) {
   # Create a reactive variable to store currently selected rule ID
   rule_uid_to_edit <- reactiveVal(NULL)
 
-  #///how to set the 'id' of the button to the uid of the selected
-  #   key, so the modal knows which key to edit/delete?
-  # input$rule_id_to_edit <- eventReactive(input$select_key, {
-  #   rules() %>%
-  #     filter(key == input$select_key) %>%
-  #     pull(uid)
-  # })
+  # Make the uid reactive to the the selected key 
   observeEvent(input$select_key, {
-
   	rules() %>%
   		filter(key == input$select_key) %>%
   		pull(uid) %>%
   		rule_uid_to_edit()
-
-    # updateActionButton(
-    #   session,
-    #   inputId = "cmd_edit_rule",
-    #   label = rules() %>%
-    #     filter(key == input$select_key) %>%
-    #     pull(uid)
-    # )
+  })
+  
+  # Make the (regex) rule reactive to the the selected key 
+  # OR any updates to the 'rules' db
+  rule_regex <- eventReactive({
+    input$select_key
+    rules()
+  },
+  {
+    rules() %>%
+      filter(key == input$select_key) %>%
+      pull(rule)
   })
 
-
-
+  
   # Populate the key selection choices based on the db
   observeEvent(rules(), {
     updateSelectInput(session, "select_key", choices = rules()$key)
   })
 
-  # Populate the regex rule label for the selected key
-  output$label_rule <-
-    renderText({
-      rules() %>%
-        filter(key == input$select_key) %>%
-        pull(rule)
-        # pull(uid)
-    })
+  # Print the (regex) rule label for the selected key
+  output$label_rule <- renderText(paste0("Rule: /", rule_regex(), "/"))
 
-  output$label_uid <- renderText({
-  	rule_uid_to_edit()
-  })
-
-  # # Update the rule regex in the rules_df when clicking Update Rule button
-  # observeEvent(input$cmd_edit_rule, {
-  #   inFile <- input$file_rules
-  #   if (is.null(inFile))
-  #     return(NULL)
-  #   # Update the regex for selected rule
-  #   read.csv(inFile$datapath, header = TRUE) %>%
-  #     mutate(
-  #       rule = case_when(
-  #         key == input$select_rule ~ input$rule_text,
-  #         TRUE ~ rule
-  #       )
-  #     ) %>%
-  #     write.csv(inFile$datapath)
+  # debugging: print uid of selected rule
+  # output$label_uid <- renderText({
+  # 	rule_uid_to_edit()
   # })
 
-
-  rules_table_prep <- reactiveVal(NULL)
-
-  observeEvent(rules(), {
-    out <- rules()
-
-    ids <- out$uid
-
-    actions <- purrr::map_chr(ids, function(id_) {
-      paste0(
-        '<div class="btn-group" style="width: 75px;" role="group" aria-label="Basic example">
-          <button class="btn btn-primary btn-sm edit_btn" data-toggle="tooltip" data-placement="top" title="Edit" id = ', id_, ' style="margin: 0"><i class="fa fa-pencil-square-o"></i></button>
-          <button class="btn btn-danger btn-sm delete_btn" data-toggle="tooltip" data-placement="top" title="Delete" id = ', id_, ' style="margin: 0"><i class="fa fa-trash-o"></i></button>
-        </div>'
-      )
-    })
-
-    # Remove the `uid` column. We don't want to show this column to the user
-    out <-
-      out %>%
-      select(-uid)
-
-    # Set the Action Buttons row to the first column of the `rules` table
-    out <-
-      cbind(
-        tibble(" " = actions),
-        out
-      )
-
-    if (is.null(rules_table_prep())) {
-      # loading data into the table for the first time, so we render the entire table
-      # rather than using a DT proxy
-      rules_table_prep(out)
-
-    } else {
-
-      # table has already rendered, so use DT proxy to update the data in the
-      # table without rerendering the entire table
-      replaceData(rules_table_proxy, out, resetPaging = FALSE, rownames = FALSE)
-
-    }
+  
+  # Make the "txs" df reactive to the uploaded csv
+  txs_df <- eventReactive(input$file_txs, {
+    inFile <- input$file_txs
+    if (is.null(inFile))
+      return(NULL)
+    df <- read.csv(inFile$datapath, header = TRUE)
+    #print(df)
+    df
+  }, ignoreNULL = TRUE, ignoreInit = TRUE)
+  
+  # Make 'matched' and 'unmatched' tx dfs based on changes to
+  # currently selected key OR 'rules' db
+  txs_df_matched <- reactive({
+    txs_df() %>% 
+      filter(grepl(rule_regex(), Description, ignore.case = TRUE)) %>%
+      count(Description, sort = TRUE)
   })
-
-  output$rules_table <- renderDT({
-    req(rules_table_prep())
-    out <- rules_table_prep()
-
-    datatable(
-      out,
-      rownames = FALSE,
-      colnames = c("key", "rule", 'Created At', 'Created By', 'Modified At', 'Modified By'),
-      # colnames = c('Model', 'Miles/Gallon', 'Cylinders', 'Displacement (cu.in.)',
-      #              'Horsepower', 'Rear Axle Ratio', 'Weight (lbs)', '1/4 Mile Time',
-      #              'Engine', 'Transmission', 'Forward Gears', 'Carburetors', 'Created At',
-      #              'Created By', 'Modified At', 'Modified By'),
-      selection = "none",
-      class = "compact stripe row-border nowrap",
-      # Escape the HTML in all except 1st column (which has the buttons)
-      escape = -1,
-      extensions = c("Buttons"),
-      options = list(
-        scrollX = TRUE,
-        dom = 'Bftip',
-        buttons = list(
-          list(
-            extend = "excel",
-            text = "Download",
-            title = paste0("rules-", Sys.Date()),
-            exportOptions = list(
-              columns = 1:(length(out) - 1)
-            )
-          )
-        ),
-        columnDefs = list(
-          list(targets = 0, orderable = FALSE)
-        ),
-        drawCallback = JS("function(settings) {
-          // removes any lingering tooltips
-          $('.tooltip').remove()
-        }")
-      )
-    ) %>%
-      formatDate(
-        columns = c("created_at", "modified_at"),
-        method = 'toLocaleString'
-      )
-
+  
+  txs_df_unmatched <- reactive({
+    txs_df() %>%
+      filter(!grepl(rule_regex(), Description, ignore.case = TRUE)) %>%
+      count(Description, sort = TRUE)
   })
+  
+  # Print the matched & unmatched txs for selected rule
+  output$txs_matched <- renderTable(txs_df_matched(), striped = TRUE, hover = TRUE)
+  output$txs_unmatched <- renderTable(txs_df_unmatched(), striped = TRUE, hover = TRUE)  
+  
 
-  rules_table_proxy <- DT::dataTableProxy('rules_table')
+  # rules_table_prep <- reactiveVal(NULL)
+  # 
+  # observeEvent(rules(), {
+  #   out <- rules()
+  # 
+  #   ids <- out$uid
+  # 
+  #   actions <- purrr::map_chr(ids, function(id_) {
+  #     paste0(
+  #       '<div class="btn-group" style="width: 75px;" role="group" aria-label="Basic example">
+  #         <button class="btn btn-primary btn-sm edit_btn" data-toggle="tooltip" data-placement="top" title="Edit" id = ', id_, ' style="margin: 0"><i class="fa fa-pencil-square-o"></i></button>
+  #         <button class="btn btn-danger btn-sm delete_btn" data-toggle="tooltip" data-placement="top" title="Delete" id = ', id_, ' style="margin: 0"><i class="fa fa-trash-o"></i></button>
+  #       </div>'
+  #     )
+  #   })
+  # 
+  #   # Remove the `uid` column. We don't want to show this column to the user
+  #   out <-
+  #     out %>%
+  #     select(-uid)
+  # 
+  #   # Set the Action Buttons row to the first column of the `rules` table
+  #   out <-
+  #     cbind(
+  #       tibble(" " = actions),
+  #       out
+  #     )
+  # 
+  #   if (is.null(rules_table_prep())) {
+  #     # loading data into the table for the first time, so we render the entire table
+  #     # rather than using a DT proxy
+  #     rules_table_prep(out)
+  # 
+  #   } else {
+  # 
+  #     # table has already rendered, so use DT proxy to update the data in the
+  #     # table without rerendering the entire table
+  #     replaceData(rules_table_proxy, out, resetPaging = FALSE, rownames = FALSE)
+  # 
+  #   }
+  # })
+  # 
+  # output$rules_table <- renderDT({
+  #   req(rules_table_prep())
+  #   out <- rules_table_prep()
+  # 
+  #   datatable(
+  #     out,
+  #     rownames = FALSE,
+  #     colnames = c("key", "rule", 'Created At', 'Created By', 'Modified At', 'Modified By'),
+  #     # colnames = c('Model', 'Miles/Gallon', 'Cylinders', 'Displacement (cu.in.)',
+  #     #              'Horsepower', 'Rear Axle Ratio', 'Weight (lbs)', '1/4 Mile Time',
+  #     #              'Engine', 'Transmission', 'Forward Gears', 'Carburetors', 'Created At',
+  #     #              'Created By', 'Modified At', 'Modified By'),
+  #     selection = "none",
+  #     class = "compact stripe row-border nowrap",
+  #     # Escape the HTML in all except 1st column (which has the buttons)
+  #     escape = -1,
+  #     extensions = c("Buttons"),
+  #     options = list(
+  #       scrollX = TRUE,
+  #       dom = 'Bftip',
+  #       buttons = list(
+  #         list(
+  #           extend = "excel",
+  #           text = "Download",
+  #           title = paste0("rules-", Sys.Date()),
+  #           exportOptions = list(
+  #             columns = 1:(length(out) - 1)
+  #           )
+  #         )
+  #       ),
+  #       columnDefs = list(
+  #         list(targets = 0, orderable = FALSE)
+  #       ),
+  #       drawCallback = JS("function(settings) {
+  #         // removes any lingering tooltips
+  #         $('.tooltip').remove()
+  #       }")
+  #     )
+  #   ) %>%
+  #     formatDate(
+  #       columns = c("created_at", "modified_at"),
+  #       method = 'toLocaleString'
+  #     )
+  # 
+  # })
+  # 
+  # rules_table_proxy <- DT::dataTableProxy('rules_table')
 
   callModule(
     rule_edit_module,
@@ -287,36 +312,32 @@ rules_table_module <- function(input, output, session) {
   		filter(key == input$select_key)
   })
 
-  # rule_to_edit <- eventReactive(input$rule_id_to_edit, {
-  #   rules() %>%
-  #     filter(uid == input$rule_id_to_edit)
-  # })
-
   callModule(
     rule_edit_module,
     "edit_rule",
     modal_title = "Edit Rule",
-    # rule_to_edit = rule_uid_to_edit,
     rule_to_edit = rule_to_edit,
-    #modal_trigger = rule_to_edit
     modal_trigger = reactive({input$cmd_edit_rule})
-    #modal_trigger = reactive({input$cmd_rule_edit})
-    # modal_trigger = reactive({input$rule_id_to_edit})
   )
-
-  rule_to_delete <- eventReactive(input$rule_id_to_delete, {
-
-    rules() %>%
-      filter(uid == input$rule_id_to_delete) %>%
+  
+  rule_to_delete <- reactive({
+  	rules() %>%
+  		filter(key == input$select_key) %>% 
       as.list()
   })
+
+  # rule_to_delete <- eventReactive(input$rule_id_to_delete, {
+  #   rules() %>%
+  #     filter(uid == input$rule_id_to_delete) %>%
+  #     as.list()
+  # })
 
   callModule(
     rule_delete_module,
     "delete_rule",
     modal_title = "Delete Rule",
     rule_to_delete = rule_to_delete,
-    modal_trigger = reactive({input$rule_id_to_delete})
+    modal_trigger = reactive({input$cmd_delete_rule})
   )
 
 }
