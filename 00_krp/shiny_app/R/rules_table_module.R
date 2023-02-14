@@ -57,10 +57,10 @@ rules_table_module_ui <- function(id) {
         tags$br(),
 
         titlePanel("Transaction Data"),
-        tags$div(HTML("<i>Upload transaction data as csv</i>")),
+        # tags$div(HTML("<i>Upload transaction data as csv</i>")),
         fileInput(
           ns("file_txs"),
-          label = "csv file: ",
+          label = "Upload transaction data as csv: ",
           accept = ".csv"
         ),
         selectInput(
@@ -78,16 +78,26 @@ rules_table_module_ui <- function(id) {
       ),
 
       mainPanel(
+      	fluidRow(
+      		column(
+      			12,
+      			flexdashboard::gaugeOutput(ns("gauge_matched_total")),
+      			textOutput(ns("text_matched_total")),
+      			textOutput(ns("text_txs_total")),
+      			tags$div(HTML("<i>% of unique Descriptions with at least 1 matching rule</i>")),
+      		)
+      	),
         fluidRow(
           column(
             6,
             titlePanel("Matched"),
-            tableOutput(ns("txs_matched"))
+            DTOutput(ns("txs_matched"))
+            # tableOutput(ns("txs_matched"))
           ),
           column(
             6,
             titlePanel("Unmatched"),
-            tableOutput(ns("txs_unmatched"))
+            DTOutput(ns("txs_unmatched"))
           )
         )
         # DTOutput(ns('rules_table')) %>%
@@ -183,11 +193,6 @@ rules_table_module <- function(input, output, session) {
   # Print the (regex) rule label for the selected key
   output$label_rule <- renderText(paste0("Rule: /", rule_regex(), "/"))
 
-  # debugging: print uid of selected rule
-  # output$label_uid <- renderText({
-  # 	rule_uid_to_edit()
-  # })
-
 
   # Make the "txs" df reactive to the uploaded csv
   txs_df <- eventReactive(input$file_txs, {
@@ -230,101 +235,86 @@ rules_table_module <- function(input, output, session) {
   		mutate(pct = n / sum(n, na.rm = TRUE))
   })
 
+
+  # Overall diagnostics ----
+  # For each unique Description, compute the number (0, 1, ...) of regex rules that match it
+  txs_df_rulecheck <- reactive({
+  	txs_df() %>%
+  		# mutate(
+  		# 	.wt =	ifelse(input$select_weight == "(Unweighted)", 1, .data[[input$select_weight]])
+  		# ) %>%
+  	 distinct(Description) %>%
+  		group_by()
+  		fuzzyjoin::regex_left_join(
+  			rules() %>%
+  				select(.key = key, .rule = rule),
+  			by = c(Description = ".rule"),
+  			ignore_case = TRUE
+  		) %>%
+  		group_by(Description) %>%
+  		summarize(
+  			.matches = sum(purrr::map_int(.key, ~ ifelse(is.na(.x), 0L, 1L)))
+  		)
+  })
+
+  # Update the gauge widget to show total rule coverage
+  output$gauge_matched_total <- flexdashboard::renderGauge({
+  	flexdashboard::gauge(
+  		#n_txs_matched() / (n_txs_matched() + n_txs_unmatched()),
+  		nrow(filter(txs_df_rulecheck(), .matches > 0)) / nrow(txs_df_rulecheck()),
+  		min = 0,
+  		max = 1,
+  		sectors = flexdashboard::gaugeSectors(
+  			success = c(0.8, 1),
+  			warning = c(0.3, 0.8),
+  			danger = c(0, 0.3)
+  		)
+  	)
+  })
+
+  # Update the text outputs to print number of matched Descriptions out of total unique
+  output$text_matched_total <- renderText({
+  	paste0("Descriptions with a matched rule: ", nrow(filter(txs_df_rulecheck(), .matches > 0)))
+  })
+  output$text_txs_total <- renderText({
+  	paste0("Total unique descriptions in transactions data: ", nrow(txs_df_rulecheck()))
+  })
+
+
+  # Matched Tx Diagnostics ----
+
+
+
+  # Unmatched Tx Diagnostics ----
+
+
+  # DataTable outputs ----
   # Print the matched & unmatched txs for selected rule
-  output$txs_matched <- renderTable(txs_df_matched(), striped = TRUE, hover = TRUE)
-  output$txs_unmatched <- renderTable(txs_df_unmatched(), striped = TRUE, hover = TRUE)
+  output$txs_matched <- renderDataTable(
+  	txs_df_matched() %>%
+  		datatable(
+  			# rownames = FALSE,
+  			colnames = c("Description", "Count", '%'),
+  			selection = "none",
+  			class = "compact stripe row-border",
+  		) %>%
+  		formatRound("n", digits = 0) %>%
+  		formatPercentage("pct", digits = 0)
+  )
+  output$txs_unmatched <- renderDataTable(
+  	txs_df_unmatched() %>%
+  		datatable(
+  			# rownames = FALSE,
+  			colnames = c("Description", "Count", '%'),
+  			selection = "none",
+  			class = "compact stripe row-border",
+  		) %>%
+  		formatRound("n", digits = 0) %>%
+  		formatPercentage("pct", digits = 0)
+  )
 
 
-  # rules_table_prep <- reactiveVal(NULL)
-  #
-  # observeEvent(rules(), {
-  #   out <- rules()
-  #
-  #   ids <- out$uid
-  #
-  #   actions <- purrr::map_chr(ids, function(id_) {
-  #     paste0(
-  #       '<div class="btn-group" style="width: 75px;" role="group" aria-label="Basic example">
-  #         <button class="btn btn-primary btn-sm edit_btn" data-toggle="tooltip" data-placement="top" title="Edit" id = ', id_, ' style="margin: 0"><i class="fa fa-pencil-square-o"></i></button>
-  #         <button class="btn btn-danger btn-sm delete_btn" data-toggle="tooltip" data-placement="top" title="Delete" id = ', id_, ' style="margin: 0"><i class="fa fa-trash-o"></i></button>
-  #       </div>'
-  #     )
-  #   })
-  #
-  #   # Remove the `uid` column. We don't want to show this column to the user
-  #   out <-
-  #     out %>%
-  #     select(-uid)
-  #
-  #   # Set the Action Buttons row to the first column of the `rules` table
-  #   out <-
-  #     cbind(
-  #       tibble(" " = actions),
-  #       out
-  #     )
-  #
-  #   if (is.null(rules_table_prep())) {
-  #     # loading data into the table for the first time, so we render the entire table
-  #     # rather than using a DT proxy
-  #     rules_table_prep(out)
-  #
-  #   } else {
-  #
-  #     # table has already rendered, so use DT proxy to update the data in the
-  #     # table without rerendering the entire table
-  #     replaceData(rules_table_proxy, out, resetPaging = FALSE, rownames = FALSE)
-  #
-  #   }
-  # })
-  #
-  # output$rules_table <- renderDT({
-  #   req(rules_table_prep())
-  #   out <- rules_table_prep()
-  #
-  #   datatable(
-  #     out,
-  #     rownames = FALSE,
-  #     colnames = c("key", "rule", 'Created At', 'Created By', 'Modified At', 'Modified By'),
-  #     # colnames = c('Model', 'Miles/Gallon', 'Cylinders', 'Displacement (cu.in.)',
-  #     #              'Horsepower', 'Rear Axle Ratio', 'Weight (lbs)', '1/4 Mile Time',
-  #     #              'Engine', 'Transmission', 'Forward Gears', 'Carburetors', 'Created At',
-  #     #              'Created By', 'Modified At', 'Modified By'),
-  #     selection = "none",
-  #     class = "compact stripe row-border nowrap",
-  #     # Escape the HTML in all except 1st column (which has the buttons)
-  #     escape = -1,
-  #     extensions = c("Buttons"),
-  #     options = list(
-  #       scrollX = TRUE,
-  #       dom = 'Bftip',
-  #       buttons = list(
-  #         list(
-  #           extend = "excel",
-  #           text = "Download",
-  #           title = paste0("rules-", Sys.Date()),
-  #           exportOptions = list(
-  #             columns = 1:(length(out) - 1)
-  #           )
-  #         )
-  #       ),
-  #       columnDefs = list(
-  #         list(targets = 0, orderable = FALSE)
-  #       ),
-  #       drawCallback = JS("function(settings) {
-  #         // removes any lingering tooltips
-  #         $('.tooltip').remove()
-  #       }")
-  #     )
-  #   ) %>%
-  #     formatDate(
-  #       columns = c("created_at", "modified_at"),
-  #       method = 'toLocaleString'
-  #     )
-  #
-  # })
-  #
-  # rules_table_proxy <- DT::dataTableProxy('rules_table')
-
+  # Modal Modules ----
   callModule(
     rule_edit_module,
     "add_rule",
