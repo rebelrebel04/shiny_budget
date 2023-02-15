@@ -25,21 +25,68 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
 
     showModal(
       modalDialog(
+        
+        # Row 1
         fluidRow(
           column(
             width = 6,
             textInput(
               ns("key"),
-              'Key',
+              "Key",
               value = ifelse(is.null(hold), "", hold$key)
-            ),
+            )
+          ),
+          column(
+            width = 6,
+            selectInput(
+              ns("expense_type"),
+              "Type",
+              choices = c("expense", "income"),
+              selected = ifelse(is.null(hold), "expense", hold$expense_type)
+            )
+          )
+        ),
+        
+        # Row 2
+        fluidRow(
+          column(
+            width = 6,
             textInput(
-              ns('rule'),
-              'Rule',
+              ns("category"),
+              "Category",
+              value = ifelse(is.null(hold), "", hold$category)
+            )
+          ),
+          column(
+            width = 6,
+            textInput(
+              ns("subcategory"),
+              "Subcategory",
+              value = ifelse(is.null(hold), "", hold$subcategory)
+            )
+          )
+        ),
+        
+        # Row 3
+        fluidRow(
+          column(
+            width = 6,
+            textInput(
+              ns("rule"),
+              "Rule",
               value = ifelse(is.null(hold), "", hold$rule)
             )
           ),
+          column(
+            width = 6,
+            textInput(
+              ns("tags"),
+              "Tags",
+              value = ifelse(is.null(hold), "", hold$tags)
+            )
+          )
         ),
+        
         title = modal_title,
         size = 'm',
         footer = list(
@@ -94,6 +141,10 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
       uid = if (is.null(hold)) NA else hold$uid,
       data = list(
         "key" = input$key,
+        "category" = input$category,
+        "subcategory" = input$subcategory,
+        "expense_type" = input$expense_type,
+        "tags" = input$tags,
         "rule" = input$rule
       )
     )
@@ -138,8 +189,8 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
 
         dbExecute(
           conn,
-          "INSERT INTO rules (uid, key, rule, created_at, created_by, modified_at, modified_by) VALUES
-          ($1, $2, $3, $4, $5, $6, $7)",
+          "INSERT INTO rules (uid, key, category, subcategory, expense_type, tags, rule, created_at, created_by, modified_at, modified_by) VALUES
+          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
           params = c(
             list(uid),
             unname(dat$data)
@@ -149,8 +200,8 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
         # editing an existing rule
         dbExecute(
           conn,
-          "UPDATE rules SET key=$1, rule=$2, created_at=$3, created_by=$4,
-          modified_at=$5, modified_by=$6 WHERE uid=$7",
+          "UPDATE rules SET key=$1, category=$2, subcategory=$3, expense_type=$4, tags=$5, rule=$6, created_at=$7, created_by=$8,
+          modified_at=$9, modified_by=$10 WHERE uid=$11",
           params = c(
             unname(dat$data),
             list(dat$uid)

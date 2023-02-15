@@ -1,5 +1,6 @@
 library(RSQLite)
 library(tibble)
+library(dplyr)
 
 # Create a connection object with SQLite
 conn <- dbConnect(
@@ -13,6 +14,10 @@ conn <- dbConnect(
 create_rules_query = "CREATE TABLE rules (
   uid                             TEXT PRIMARY KEY,
   key                             TEXT,
+  category                        TEXT,
+  subcategory                     TEXT,
+  expense_type                    TEXT,
+  tags                            TEXT,
   rule                            TEXT,
   created_at                      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_by                      TEXT,

@@ -7,9 +7,9 @@ library(tibble)
 # rule = regex string
 # key = category (or whatever) to assign matching cases
 rules <- tribble(
-  ~key,        ~rule,
-  "Vanguard",  "vanguard",
-  "AT&T",      "att"
+  ~key,         ~category,      ~subcategory,  ~expense_type,  ~tags,      ~rule,
+  "Vanguard",   "retirement",   "401k",        "expense",      "savings",  "vanguard",
+  "AT&T",       "utilities",    "mobile",      "expense",      "",         "att"      
 )
 rules
 saveRDS(rules, "./00_krp/data_prep/data/regex_tester/rules.RDS")
