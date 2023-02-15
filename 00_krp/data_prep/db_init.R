@@ -38,7 +38,7 @@ dat <- readRDS("00_krp/data_prep/data/regex_tester/rules.RDS")
 dat$uid <- uuid::UUIDgenerate(n = nrow(dat))
 
 # reorder the columns
-dat <- 
+dat <-
   dat %>%
   select(uid, everything())
 
@@ -53,6 +53,8 @@ DBI::dbWriteTable(
 
 # List tables to confirm 'mtcars' table exists
 dbListTables(conn)
+dbGetQuery(conn, "select * from rules") %>%
+	glimpse()
 
 # disconnect from SQLite before continuing
 dbDisconnect(conn)

@@ -1,5 +1,6 @@
 # Library in packages used in this application
 library(shiny)
+library(flexdashboard)
 library(DT)
 library(DBI)
 library(RSQLite)
