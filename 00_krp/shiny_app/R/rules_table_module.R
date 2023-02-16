@@ -12,7 +12,7 @@
 #'
 rules_table_module_ui <- function(id) {
   ns <- NS(id)
-  
+
   tagList(
     sidebarLayout(
       sidebarPanel(
@@ -56,7 +56,7 @@ rules_table_module_ui <- function(id) {
         ),
         tags$br(),
         tags$br(),
-        
+
         titlePanel("Transaction Data"),
         # tags$div(HTML("<i>Upload transaction data as csv</i>")),
         fileInput(
@@ -85,7 +85,7 @@ rules_table_module_ui <- function(id) {
           choices = "(Unweighted)"
         ),
         tags$br(),
-        
+
         actionButton(
           ns("cmd_apply"),
           "Apply & Save",
@@ -93,7 +93,7 @@ rules_table_module_ui <- function(id) {
           style = "color: #fff;",
           icon = icon('bolt')
         )
-        
+
         # tags$div(
         #   class="btn-group", style="width: 75px;", role="group", 'aria-label'="Basic example",
         #   tags$button(class="btn btn-primary btn-sm edit_btn", 'data-toggle'="tooltip", 'data-placement'="top", title="Edit", id = "4127d505-ea58-440b-b3e7-968ea77c2612", style="margin: 0", tags$i(class="fa fa-pencil-square-o")),
@@ -102,7 +102,7 @@ rules_table_module_ui <- function(id) {
         # tags$br(),
         # tags$br()
       ),
-      
+
       mainPanel(
         fluidRow(
           column(
@@ -113,7 +113,7 @@ rules_table_module_ui <- function(id) {
           ),
           column(
             8,
-            plotOutput(ns("plot_treemap"), height = "200px")            
+            plotOutput(ns("plot_treemap"), height = "200px")
           )
         ),
         fluidRow(
@@ -155,15 +155,15 @@ rules_table_module_ui <- function(id) {
 #' @return None
 
 rules_table_module <- function(input, output, session) {
-  
+
   # trigger to reload data from the "rules" table
   session$userData$rules_trigger <- reactiveVal(0)
-  
+
   # Rules DB Connection ####
   # Read in selected "rules" table from the database
   rules <- reactive({
     session$userData$rules_trigger()
-    
+
     out <- NULL
     tryCatch({
       out <-
@@ -176,7 +176,7 @@ rules_table_module <- function(input, output, session) {
         ) %>%
         arrange(desc(modified_at))
     }, error = function(err) {
-      
+
       msg <- "Database Connection Error"
       # print `msg` so that we can find it in the logs
       print(msg)
@@ -186,14 +186,14 @@ rules_table_module <- function(input, output, session) {
       # quickly identify where it cam from based on the value in `msg`
       showToast("error", msg)
     })
-    
+
     out
   })
-  
-  
+
+
   # Create a reactive variable to store currently selected rule ID
   rule_uid_to_edit <- reactiveVal(NULL)
-  
+
   # Make the uid reactive to the the selected key
   observeEvent(input$select_key, {
     rules() %>%
@@ -201,7 +201,7 @@ rules_table_module <- function(input, output, session) {
       pull(uid) %>%
       rule_uid_to_edit()
   })
-  
+
   # Make the (regex) rule reactive to the the selected key
   # OR any updates to the 'rules' db
   rule_regex <- eventReactive({
@@ -213,17 +213,17 @@ rules_table_module <- function(input, output, session) {
       filter(key == input$select_key) %>%
       pull(rule)
   })
-  
-  
+
+
   # Populate the key selection choices based on the db
   observeEvent(rules(), {
     updateSelectInput(session, "select_key", choices = rules()$key)
   })
-  
+
   # Print the (regex) rule label for the selected key
   output$label_rule <- renderText(paste0("Rule: /", rule_regex(), "/"))
-  
-  
+
+
   # Tx data processing ####
   # Make the raw txs df reactive to the uploaded csv
   txs_raw <- eventReactive(input$file_txs, {
@@ -234,7 +234,7 @@ rules_table_module <- function(input, output, session) {
     #print(df)
     df
   }, ignoreNULL = TRUE, ignoreInit = TRUE)
-  
+
   # Apply selected preproc fun
   txs_preproc <- reactive({
     if (input$select_preprocfun == "(none)") {
@@ -243,7 +243,7 @@ rules_table_module <- function(input, output, session) {
       do.call(input$select_preprocfun, txs_raw(), envir = preproc)
     }
   })
-  
+
   # Populate the weight selection choices based on the tx data
   # as well as the description field choices
   observeEvent(txs_preproc(), {
@@ -258,19 +258,19 @@ rules_table_module <- function(input, output, session) {
       names()
     updateSelectInput(session, "select_weight", choices = c("(Unweighted)", weight_choices))
   })
-  
+
   # Dedup the txs by the description field if checked
   txs_dedup <- reactive({
     if (input$check_dedup) {
-      txs_preproc() %>% 
-        group_by(.data[[input$select_description]]) %>% 
-        summarize(across(where(is.numeric), \(x) sum(x, na.rm = TRUE))) %>% 
+      txs_preproc() %>%
+        group_by(.data[[input$select_description]]) %>%
+        summarize(across(where(is.numeric), \(x) sum(x, na.rm = TRUE))) %>%
         ungroup()
     } else {
       txs_preproc()
     }
   })
-  
+
   # Make 'matched' and 'unmatched' tx dfs based on selected rule
   # Count is conditional on choice of weighted or unweighted
   txs_matched <- reactive({
@@ -282,7 +282,7 @@ rules_table_module <- function(input, output, session) {
       count(.data[[input$select_description]], wt = .wt, sort = TRUE) %>%
       mutate(pct = n / sum(n, na.rm = TRUE))
   })
-  
+
   txs_unmatched <- reactive({
     txs_dedup() %>%
       filter(!grepl(rule_regex(), .data[[input$select_description]], ignore.case = TRUE)) %>%
@@ -292,8 +292,8 @@ rules_table_module <- function(input, output, session) {
       count(.data[[input$select_description]], wt = .wt, sort = TRUE) %>%
       mutate(pct = n / sum(n, na.rm = TRUE))
   })
-  
-  
+
+
   # Overall diagnostics ----
   # For each description, compute the number (0, 1, ...) of regex rules that match it
   txs_rulecheck <- reactive({
@@ -303,7 +303,7 @@ rules_table_module <- function(input, output, session) {
       mutate(
         .id = 1:n(),
         .wt =	ifelse(input$select_weight == "(Unweighted)", 1, .data[[input$select_weight]])
-      ) %>% 
+      ) %>%
       # distinct(.data[[input$select_description]]) %>%
       fuzzyjoin::regex_left_join(
         rules() %>%
@@ -317,21 +317,21 @@ rules_table_module <- function(input, output, session) {
         .matches = sum(purrr::map_int(.key, \(x) ifelse(is.na(x), 0L, 1L))),
         # also retain the first key matched, if any
         .key = first(.key)
-      ) %>% 
-      ungroup() %>% 
+      ) %>%
+      ungroup() %>%
       mutate(
         .key = ifelse(is.na(.key), "NONE", .key)
       )
   })
-  
+
   # Update the gauge widget to show total rule coverage
   output$gauge_matched_total <- flexdashboard::renderGauge({
-    matched <- txs_rulecheck() %>% 
-      filter(.matches > 0) %>% 
-      pull(.wt) %>% 
+    matched <- txs_rulecheck() %>%
+      filter(.matches > 0) %>%
+      pull(.wt) %>%
       sum(na.rm = TRUE)
-    total <- txs_rulecheck() %>% 
-      pull(.wt) %>% 
+    total <- txs_rulecheck() %>%
+      pull(.wt) %>%
       sum(na.rm = TRUE)
     flexdashboard::gauge(
       100 * (matched / total),
@@ -348,44 +348,44 @@ rules_table_module <- function(input, output, session) {
       )
     )
   })
-  
+
   # Update the treemap plot to show categorized txs
   output$plot_treemap <- renderPlot({
     print(txs_rulecheck())
-    txs_rulecheck() %>% 
-      count(.key, wt = .wt) %>% 
+    txs_rulecheck() %>%
+      count(.key, wt = .wt) %>%
       ggplot(aes(area = n, fill = n, label = .key)) +
-      geom_treemap() +
-      geom_treemap_text(fontface = "italic", colour = "gray", place = "centre", grow = FALSE) +
+      treemapify::geom_treemap() +
+      treemapify::geom_treemap_text(fontface = "italic", colour = "gray", place = "centre", grow = FALSE) +
       scale_fill_viridis_c(option = "B")
   })
-  
+
   # Update the text outputs to print number of matched Descriptions out of total unique
   output$text_matched_total <- renderText({
-    matched <- txs_rulecheck() %>% 
-      filter(.matches > 0) %>% 
-      pull(.wt) %>% 
+    matched <- txs_rulecheck() %>%
+      filter(.matches > 0) %>%
+      pull(.wt) %>%
       sum(na.rm = TRUE)
     paste0("Txs with a matched rule: ", scales::comma(matched, accuracy = 1))
-    # paste0("Transactions with a matched rule: ", nrow(filter(txs_rulecheck(), .matches > 0)))    
+    # paste0("Transactions with a matched rule: ", nrow(filter(txs_rulecheck(), .matches > 0)))
   })
   output$text_unmatched_total <- renderText({
-    unmatched <- txs_rulecheck() %>% 
-      filter(.matches == 0) %>% 
-      pull(.wt) %>% 
+    unmatched <- txs_rulecheck() %>%
+      filter(.matches == 0) %>%
+      pull(.wt) %>%
       sum(na.rm = TRUE)
     paste0("Txs without a matched rule: ", scales::comma(unmatched, accuracy = 1))
-    # paste0("Total transactions in data: ", nrow(txs_dedup()))    
+    # paste0("Total transactions in data: ", nrow(txs_dedup()))
   })
-  
-  
+
+
   # Matched Tx Diagnostics ----
-  
-  
-  
+
+
+
   # Unmatched Tx Diagnostics ----
-  
-  
+
+
   # DataTable outputs ----
   # Print the matched & unmatched txs for selected rule
   output$txs_matched <- renderDataTable(
@@ -410,8 +410,8 @@ rules_table_module <- function(input, output, session) {
       formatRound("n", digits = 0) %>%
       formatPercentage("pct", digits = 0)
   )
-  
-  
+
+
   # Modal Modules ----
   callModule(
     rule_edit_module,
@@ -420,12 +420,12 @@ rules_table_module <- function(input, output, session) {
     rule_to_edit = function() NULL,
     modal_trigger = reactive({input$add_rule})
   )
-  
+
   rule_to_edit <- reactive({
     rules() %>%
       filter(key == input$select_key)
   })
-  
+
   callModule(
     rule_edit_module,
     "edit_rule",
@@ -433,19 +433,19 @@ rules_table_module <- function(input, output, session) {
     rule_to_edit = rule_to_edit,
     modal_trigger = reactive({input$cmd_edit_rule})
   )
-  
+
   rule_to_delete <- reactive({
     rules() %>%
       filter(key == input$select_key) %>%
       as.list()
   })
-  
+
   # rule_to_delete <- eventReactive(input$rule_id_to_delete, {
   #   rules() %>%
   #     filter(uid == input$rule_id_to_delete) %>%
   #     as.list()
   # })
-  
+
   callModule(
     rule_delete_module,
     "delete_rule",
@@ -453,5 +453,5 @@ rules_table_module <- function(input, output, session) {
     rule_to_delete = rule_to_delete,
     modal_trigger = reactive({input$cmd_delete_rule})
   )
-  
+
 }
