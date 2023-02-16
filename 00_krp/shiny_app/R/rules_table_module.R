@@ -65,6 +65,12 @@ rules_table_module_ui <- function(id) {
           accept = ".csv"
         ),
         selectInput(
+          ns("select_preprocfun"),
+          label = "Preprocessing function: ",
+          choices = c("(none)", lsf.str(envir = preproc)),
+          selected = "(none)"
+        ),
+        selectInput(
           ns("select_description"),
           label = "Description field to match: ",
           choices = NULL,
@@ -77,7 +83,17 @@ rules_table_module_ui <- function(id) {
           ns("select_weight"),
           label = "Weight (optional): ",
           choices = "(Unweighted)"
+        ),
+        tags$br(),
+        
+        actionButton(
+          ns("cmd_apply"),
+          "Apply & Save",
+          class = "btn btn-success apply_btn",
+          style = "color: #fff;",
+          icon = icon('bolt')
         )
+        
         # tags$div(
         #   class="btn-group", style="width: 75px;", role="group", 'aria-label'="Basic example",
         #   tags$button(class="btn btn-primary btn-sm edit_btn", 'data-toggle'="tooltip", 'data-placement'="top", title="Edit", id = "4127d505-ea58-440b-b3e7-968ea77c2612", style="margin: 0", tags$i(class="fa fa-pencil-square-o")),
@@ -90,11 +106,14 @@ rules_table_module_ui <- function(id) {
       mainPanel(
         fluidRow(
           column(
-            12,
+            4,
             flexdashboard::gaugeOutput(ns("gauge_matched_total")),
             textOutput(ns("text_matched_total")),
-            textOutput(ns("text_txs_total"))
-            # tags$div(HTML("<i>% of unique Descriptions with at least 1 matching rule</i>")),
+            textOutput(ns("text_unmatched_total"))
+          ),
+          column(
+            8,
+            plotOutput(ns("plot_treemap"), height = "200px")            
           )
         ),
         fluidRow(
@@ -216,16 +235,25 @@ rules_table_module <- function(input, output, session) {
     df
   }, ignoreNULL = TRUE, ignoreInit = TRUE)
   
+  # Apply selected preproc fun
+  txs_preproc <- reactive({
+    if (input$select_preprocfun == "(none)") {
+      txs_raw()
+    } else {
+      do.call(input$select_preprocfun, txs_raw(), envir = preproc)
+    }
+  })
+  
   # Populate the weight selection choices based on the tx data
   # as well as the description field choices
-  observeEvent(txs_raw(), {
+  observeEvent(txs_preproc(), {
     description_choices <-
-      txs_raw() %>%
+      txs_preproc() %>%
       select(where(is.character)) %>%
       names()
     updateSelectInput(session, "select_description", choices = description_choices)
     weight_choices <-
-      txs_raw() %>%
+      txs_preproc() %>%
       select(where(is.numeric)) %>%
       names()
     updateSelectInput(session, "select_weight", choices = c("(Unweighted)", weight_choices))
@@ -234,12 +262,12 @@ rules_table_module <- function(input, output, session) {
   # Dedup the txs by the description field if checked
   txs_dedup <- reactive({
     if (input$check_dedup) {
-      txs_raw() %>% 
+      txs_preproc() %>% 
         group_by(.data[[input$select_description]]) %>% 
         summarize(across(where(is.numeric), \(x) sum(x, na.rm = TRUE))) %>% 
         ungroup()
     } else {
-      txs_raw()
+      txs_preproc()
     }
   })
   
@@ -272,7 +300,10 @@ rules_table_module <- function(input, output, session) {
     txs_dedup() %>%
       # Add a unique id to prevent unintended deduplication
       # (if user has not checked the box to combine identical descriptions)
-      mutate(.id = 1:n()) %>% 
+      mutate(
+        .id = 1:n(),
+        .wt =	ifelse(input$select_weight == "(Unweighted)", 1, .data[[input$select_weight]])
+      ) %>% 
       # distinct(.data[[input$select_description]]) %>%
       fuzzyjoin::regex_left_join(
         rules() %>%
@@ -280,35 +311,71 @@ rules_table_module <- function(input, output, session) {
         by = setNames(".rule", input$select_description),
         ignore_case = TRUE
       ) %>%
-      group_by(.id, .data[[input$select_description]]) %>%
+      group_by(.id, .wt, .data[[input$select_description]]) %>%
       summarize(
-        .matches = sum(purrr::map_int(.key, ~ ifelse(is.na(.x), 0L, 1L)))
+        # compute the number of matching keys (zero or more) for each tx
+        .matches = sum(purrr::map_int(.key, \(x) ifelse(is.na(x), 0L, 1L))),
+        # also retain the first key matched, if any
+        .key = first(.key)
+      ) %>% 
+      ungroup() %>% 
+      mutate(
+        .key = ifelse(is.na(.key), "NONE", .key)
       )
   })
   
   # Update the gauge widget to show total rule coverage
   output$gauge_matched_total <- flexdashboard::renderGauge({
+    matched <- txs_rulecheck() %>% 
+      filter(.matches > 0) %>% 
+      pull(.wt) %>% 
+      sum(na.rm = TRUE)
+    total <- txs_rulecheck() %>% 
+      pull(.wt) %>% 
+      sum(na.rm = TRUE)
     flexdashboard::gauge(
-      100 * (nrow(filter(txs_rulecheck(), .matches > 0)) / nrow(txs_rulecheck())),
+      100 * (matched / total),
+      # 100 * (nrow(filter(txs_rulecheck(), .matches > 0)) / nrow(txs_rulecheck())),
       min = 0,
       max = 100,
       symbol = "%",
       label = "% of transactions with at least 1 matching rule",
       abbreviateDecimals = 0,
       sectors = flexdashboard::gaugeSectors(
-        success = c(0.8, 1),
-        warning = c(0.3, 0.8),
-        danger = c(0, 0.3)
+        success = c(80, 100),
+        warning = c(30, 80),
+        danger = c(0, 30)
       )
     )
   })
   
+  # Update the treemap plot to show categorized txs
+  output$plot_treemap <- renderPlot({
+    print(txs_rulecheck())
+    txs_rulecheck() %>% 
+      count(.key, wt = .wt) %>% 
+      ggplot(aes(area = n, fill = n, label = .key)) +
+      geom_treemap() +
+      geom_treemap_text(fontface = "italic", colour = "gray", place = "centre", grow = FALSE) +
+      scale_fill_viridis_c(option = "B")
+  })
+  
   # Update the text outputs to print number of matched Descriptions out of total unique
   output$text_matched_total <- renderText({
-    paste0("Transactions with a matched rule: ", nrow(filter(txs_rulecheck(), .matches > 0)))
+    matched <- txs_rulecheck() %>% 
+      filter(.matches > 0) %>% 
+      pull(.wt) %>% 
+      sum(na.rm = TRUE)
+    paste0("Txs with a matched rule: ", scales::comma(matched, accuracy = 1))
+    # paste0("Transactions with a matched rule: ", nrow(filter(txs_rulecheck(), .matches > 0)))    
   })
-  output$text_txs_total <- renderText({
-    paste0("Total transactions in data: ", nrow(txs_dedup()))
+  output$text_unmatched_total <- renderText({
+    unmatched <- txs_rulecheck() %>% 
+      filter(.matches == 0) %>% 
+      pull(.wt) %>% 
+      sum(na.rm = TRUE)
+    paste0("Txs without a matched rule: ", scales::comma(unmatched, accuracy = 1))
+    # paste0("Total transactions in data: ", nrow(txs_dedup()))    
   })
   
   

@@ -10,6 +10,7 @@ library(lubridate)
 library(shinyFeedback)
 library(dplyr)
 library(dbplyr)
+library(ggplot2)
 
 db_config <- config::get()$db
 
@@ -18,6 +19,9 @@ conn <- dbConnect(
   RSQLite::SQLite(),
   dbname = db_config$dbname
 )
+
+preproc <- new.env()
+source(config::get()$preproc_funs, local = preproc)
 
 # Stop database connection when application stops
 shiny::onStop(function() {
