@@ -2,10 +2,39 @@
 # perform cleaning steps and return it
 
 default <- function(x) {
-  x
+  readr::read_csv(x, col_names = TRUE, name_repair = "universal")
 }
 
 baycoast <- function(x) {
+  x <- readr::read_csv(
+    # x,
+    "~/Downloads/BayCoast_raw_alltodate.csv", 
+    skip = 3, 
+    col_names = TRUE,
+    col_types = "ccccnnnnn",
+    name_repair = "universal"
+  ) |> 
+    replace_na(list(Amount.Debit = 0, Amount.Credit = 0)) |>  
+    unite("description", Description, Memo, na.rm = TRUE) |> 
+    mutate(
+      account = "BayCoast Joint Checking",
+      date = as.Date(strptime(Date, format = "%m/%d/%Y")),
+      # description = concat(Description, Memo),
+      # Amount.Debit is negative, Amount.Credit is positive
+      amount = abs(Amount.Debit + Amount.Credit),
+      type = ifelse(amount < 0, "debit", "credit")
+    ) |> 
+    group_by(account, date) |> 
+    mutate(transaction_number = 1:n()) |> 
+    ungroup() |> 
+    select(
+      account,
+      date,
+      transaction_number,
+      description,
+      type,
+      amount
+    )
+  # glimpse(x)
   x
-    # mutate(test = "foo")
 }

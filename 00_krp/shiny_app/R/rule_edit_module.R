@@ -41,7 +41,7 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
             selectInput(
               ns("expense_type"),
               "Type",
-              choices = c("expense", "income"),
+              choices = c("expense", "income", "exclude"),
               selected = ifelse(is.null(hold), "expense", hold$expense_type)
             )
           )

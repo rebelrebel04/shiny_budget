@@ -119,17 +119,17 @@ rules_table_module_ui <- function(id) {
         fluidRow(
           column(
             6,
-            titlePanel("Matched"),
+            titlePanel("Matched (Selected Rule)"),
             DTOutput(ns("txs_matched"))
             # tableOutput(ns("txs_matched"))
           ),
           column(
             6,
-            titlePanel("Unmatched"),
+            titlePanel("Unmatched (All)"),
             DTOutput(ns("txs_unmatched"))
           )
         )
-        # DTOutput(ns('rules_table')) %>%
+        # DTOutput(ns('rules_table')) |>
         #   withSpinner()
         # tags$br(),
         # tags$br()
@@ -167,13 +167,13 @@ rules_table_module <- function(input, output, session) {
     out <- NULL
     tryCatch({
       out <-
-        conn %>%
-        tbl(input$select_dbtable) %>%
-        collect() %>%
+        conn |>
+        tbl(input$select_dbtable) |>
+        collect() |>
         mutate(
           created_at = as.POSIXct(created_at, tz = "UTC"),
           modified_at = as.POSIXct(modified_at, tz = "UTC")
-        ) %>%
+        ) |>
         arrange(desc(modified_at))
     }, error = function(err) {
 
@@ -191,16 +191,16 @@ rules_table_module <- function(input, output, session) {
   })
 
 
-  # Create a reactive variable to store currently selected rule ID
-  rule_uid_to_edit <- reactiveVal(NULL)
-
-  # Make the uid reactive to the the selected key
-  observeEvent(input$select_key, {
-    rules() %>%
-      filter(key == input$select_key) %>%
-      pull(uid) %>%
-      rule_uid_to_edit()
-  })
+  # # Create a reactive variable to store currently selected rule ID
+  # rule_uid_to_edit <- reactiveVal(NULL)
+  # 
+  # # Make the uid reactive to the the selected key
+  # observeEvent(input$select_key, {
+  #   rules() |>
+  #     filter(key == input$select_key) |>
+  #     pull(uid) |>
+  #     rule_uid_to_edit()
+  # })
 
   # Make the (regex) rule reactive to the the selected key
   # OR any updates to the 'rules' db
@@ -209,8 +209,8 @@ rules_table_module <- function(input, output, session) {
     rules()
   },
   {
-    rules() %>%
-      filter(key == input$select_key) %>%
+    rules() |>
+      filter(key == input$select_key) |>
       pull(rule)
   })
 
@@ -226,21 +226,22 @@ rules_table_module <- function(input, output, session) {
 
   # Tx data processing ####
   # Make the raw txs df reactive to the uploaded csv
-  txs_raw <- eventReactive(input$file_txs, {
+  txs_filepath <- eventReactive(input$file_txs, {
     inFile <- input$file_txs
     if (is.null(inFile))
       return(NULL)
-    df <- read.csv(inFile$datapath, header = TRUE)
-    #print(df)
-    df
+    inFile$datapath
+    # df <- read.csv(inFile$datapath, header = TRUE)
+    # df
   }, ignoreNULL = TRUE, ignoreInit = TRUE)
 
   # Apply selected preproc fun
   txs_preproc <- reactive({
     if (input$select_preprocfun == "(none)") {
-      txs_raw()
+      preproc$default(txs_filepath())
     } else {
-      do.call(input$select_preprocfun, txs_raw(), envir = preproc)
+      f <- get(input$select_preprocfun)
+      do.call(f, list(x = txs_filepath()), envir = preproc)
     }
   })
 
@@ -248,13 +249,13 @@ rules_table_module <- function(input, output, session) {
   # as well as the description field choices
   observeEvent(txs_preproc(), {
     description_choices <-
-      txs_preproc() %>%
-      select(where(is.character)) %>%
+      txs_preproc() |>
+      select(where(is.character)) |>
       names()
     updateSelectInput(session, "select_description", choices = description_choices)
     weight_choices <-
-      txs_preproc() %>%
-      select(where(is.numeric)) %>%
+      txs_preproc() |>
+      select(where(is.numeric)) |>
       names()
     updateSelectInput(session, "select_weight", choices = c("(Unweighted)", weight_choices))
   })
@@ -262,9 +263,9 @@ rules_table_module <- function(input, output, session) {
   # Dedup the txs by the description field if checked
   txs_dedup <- reactive({
     if (input$check_dedup) {
-      txs_preproc() %>%
-        group_by(.data[[input$select_description]]) %>%
-        summarize(across(where(is.numeric), \(x) sum(x, na.rm = TRUE))) %>%
+      txs_preproc() |>
+        group_by(.data[[input$select_description]]) |>
+        summarize(across(where(is.numeric), \(x) sum(x, na.rm = TRUE))) |>
         ungroup()
     } else {
       txs_preproc()
@@ -274,22 +275,22 @@ rules_table_module <- function(input, output, session) {
   # Make 'matched' and 'unmatched' tx dfs based on selected rule
   # Count is conditional on choice of weighted or unweighted
   txs_matched <- reactive({
-    txs_dedup() %>%
-      filter(grepl(rule_regex(), .data[[input$select_description]], ignore.case = TRUE)) %>%
+    txs_dedup() |>
+      filter(grepl(rule_regex(), .data[[input$select_description]], ignore.case = TRUE)) |>
       mutate(
         .wt =	ifelse(input$select_weight == "(Unweighted)", 1, .data[[input$select_weight]])
-      ) %>%
-      count(.data[[input$select_description]], wt = .wt, sort = TRUE) %>%
+      ) |>
+      count(.data[[input$select_description]], wt = .wt, sort = TRUE) |>
       mutate(pct = n / sum(n, na.rm = TRUE))
   })
 
   txs_unmatched <- reactive({
-    txs_dedup() %>%
-      filter(!grepl(rule_regex(), .data[[input$select_description]], ignore.case = TRUE)) %>%
+    txs_dedup() |>
+      filter(!grepl(rule_regex(), .data[[input$select_description]], ignore.case = TRUE)) |>
       mutate(
         .wt =	ifelse(input$select_weight == "(Unweighted)", 1, .data[[input$select_weight]])
-      ) %>%
-      count(.data[[input$select_description]], wt = .wt, sort = TRUE) %>%
+      ) |>
+      count(.data[[input$select_description]], wt = .wt, sort = TRUE) |>
       mutate(pct = n / sum(n, na.rm = TRUE))
   })
 
@@ -297,28 +298,28 @@ rules_table_module <- function(input, output, session) {
   # Overall diagnostics ----
   # For each description, compute the number (0, 1, ...) of regex rules that match it
   txs_rulecheck <- reactive({
-    txs_dedup() %>%
+    txs_dedup() |>
       # Add a unique id to prevent unintended deduplication
       # (if user has not checked the box to combine identical descriptions)
       mutate(
         .id = 1:n(),
         .wt =	ifelse(input$select_weight == "(Unweighted)", 1, .data[[input$select_weight]])
-      ) %>%
-      # distinct(.data[[input$select_description]]) %>%
+      ) |>
+      # distinct(.data[[input$select_description]]) |>
       fuzzyjoin::regex_left_join(
-        rules() %>%
+        rules() |>
           select(.key = key, .rule = rule),
         by = setNames(".rule", input$select_description),
         ignore_case = TRUE
-      ) %>%
-      group_by(.id, .wt, .data[[input$select_description]]) %>%
+      ) |>
+      group_by(.id, .wt, .data[[input$select_description]]) |>
       summarize(
         # compute the number of matching keys (zero or more) for each tx
         .matches = sum(purrr::map_int(.key, \(x) ifelse(is.na(x), 0L, 1L))),
         # also retain the first key matched, if any
         .key = first(.key)
-      ) %>%
-      ungroup() %>%
+      ) |>
+      ungroup() |>
       mutate(
         .key = ifelse(is.na(.key), "NONE", .key)
       )
@@ -326,12 +327,12 @@ rules_table_module <- function(input, output, session) {
 
   # Update the gauge widget to show total rule coverage
   output$gauge_matched_total <- flexdashboard::renderGauge({
-    matched <- txs_rulecheck() %>%
-      filter(.matches > 0) %>%
-      pull(.wt) %>%
+    matched <- txs_rulecheck() |>
+      filter(.matches > 0) |>
+      pull(.wt) |>
       sum(na.rm = TRUE)
-    total <- txs_rulecheck() %>%
-      pull(.wt) %>%
+    total <- txs_rulecheck() |>
+      pull(.wt) |>
       sum(na.rm = TRUE)
     flexdashboard::gauge(
       100 * (matched / total),
@@ -352,8 +353,8 @@ rules_table_module <- function(input, output, session) {
   # Update the treemap plot to show categorized txs
   output$plot_treemap <- renderPlot({
     print(txs_rulecheck())
-    txs_rulecheck() %>%
-      count(.key, wt = .wt) %>%
+    txs_rulecheck() |>
+      count(.key, wt = .wt) |>
       ggplot(aes(area = n, fill = n, label = .key)) +
       treemapify::geom_treemap() +
       treemapify::geom_treemap_text(fontface = "italic", colour = "gray", place = "centre", grow = FALSE) +
@@ -362,17 +363,17 @@ rules_table_module <- function(input, output, session) {
 
   # Update the text outputs to print number of matched Descriptions out of total unique
   output$text_matched_total <- renderText({
-    matched <- txs_rulecheck() %>%
-      filter(.matches > 0) %>%
-      pull(.wt) %>%
+    matched <- txs_rulecheck() |>
+      filter(.matches > 0) |>
+      pull(.wt) |>
       sum(na.rm = TRUE)
     paste0("Txs with a matched rule: ", scales::comma(matched, accuracy = 1))
     # paste0("Transactions with a matched rule: ", nrow(filter(txs_rulecheck(), .matches > 0)))
   })
   output$text_unmatched_total <- renderText({
-    unmatched <- txs_rulecheck() %>%
-      filter(.matches == 0) %>%
-      pull(.wt) %>%
+    unmatched <- txs_rulecheck() |>
+      filter(.matches == 0) |>
+      pull(.wt) |>
       sum(na.rm = TRUE)
     paste0("Txs without a matched rule: ", scales::comma(unmatched, accuracy = 1))
     # paste0("Total transactions in data: ", nrow(txs_dedup()))
@@ -389,25 +390,29 @@ rules_table_module <- function(input, output, session) {
   # DataTable outputs ----
   # Print the matched & unmatched txs for selected rule
   output$txs_matched <- renderDataTable(
-    txs_matched() %>%
+    txs_matched() |>
       datatable(
         # rownames = FALSE,
         colnames = c("Description", "Count", '%'),
         selection = "none",
         class = "compact stripe row-border",
-      ) %>%
-      formatRound("n", digits = 0) %>%
+      ) |>
+      formatRound("n", digits = 0) |>
       formatPercentage("pct", digits = 0)
   )
   output$txs_unmatched <- renderDataTable(
-    txs_unmatched() %>%
+    txs_rulecheck() |> 
+      filter(.matches == 0) |> 
+      count(.data[[input$select_description]], wt = .wt, sort = TRUE) |>
+      mutate(pct = n / sum(n, na.rm = TRUE)) |> 
+    # txs_unmatched() |>
       datatable(
         # rownames = FALSE,
         colnames = c("Description", "Count", '%'),
         selection = "none",
         class = "compact stripe row-border",
-      ) %>%
-      formatRound("n", digits = 0) %>%
+      ) |> 
+      formatRound("n", digits = 0) |> 
       formatPercentage("pct", digits = 0)
   )
 
@@ -422,7 +427,7 @@ rules_table_module <- function(input, output, session) {
   )
 
   rule_to_edit <- reactive({
-    rules() %>%
+    rules() |>
       filter(key == input$select_key)
   })
 
@@ -435,14 +440,14 @@ rules_table_module <- function(input, output, session) {
   )
 
   rule_to_delete <- reactive({
-    rules() %>%
-      filter(key == input$select_key) %>%
+    rules() |>
+      filter(key == input$select_key) |>
       as.list()
   })
 
   # rule_to_delete <- eventReactive(input$rule_id_to_delete, {
-  #   rules() %>%
-  #     filter(uid == input$rule_id_to_delete) %>%
+  #   rules() |>
+  #     filter(uid == input$rule_id_to_delete) |>
   #     as.list()
   # })
 
