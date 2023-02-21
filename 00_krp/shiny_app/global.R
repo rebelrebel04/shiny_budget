@@ -9,6 +9,8 @@ library(shinycssloaders)
 library(lubridate)
 library(shinyFeedback)
 library(dplyr)
+library(readr)
+library(tidyr)
 library(dbplyr)
 library(ggplot2)
 

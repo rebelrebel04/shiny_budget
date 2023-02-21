@@ -125,7 +125,7 @@ rules_table_module_ui <- function(id) {
           ),
           column(
             6,
-            titlePanel("Unmatched (All)"),
+            titlePanel("Unmatched (All Remaining)"),
             DTOutput(ns("txs_unmatched"))
           )
         )
@@ -272,39 +272,27 @@ rules_table_module <- function(input, output, session) {
     }
   })
 
-  # Make 'matched' and 'unmatched' tx dfs based on selected rule
-  # Count is conditional on choice of weighted or unweighted
-  txs_matched <- reactive({
-    txs_dedup() |>
-      filter(grepl(rule_regex(), .data[[input$select_description]], ignore.case = TRUE)) |>
-      mutate(
-        .wt =	ifelse(input$select_weight == "(Unweighted)", 1, .data[[input$select_weight]])
-      ) |>
-      count(.data[[input$select_description]], wt = .wt, sort = TRUE) |>
-      mutate(pct = n / sum(n, na.rm = TRUE))
-  })
-
-  txs_unmatched <- reactive({
-    txs_dedup() |>
-      filter(!grepl(rule_regex(), .data[[input$select_description]], ignore.case = TRUE)) |>
-      mutate(
-        .wt =	ifelse(input$select_weight == "(Unweighted)", 1, .data[[input$select_weight]])
-      ) |>
-      count(.data[[input$select_description]], wt = .wt, sort = TRUE) |>
-      mutate(pct = n / sum(n, na.rm = TRUE))
-  })
 
 
   # Overall diagnostics ----
   # For each description, compute the number (0, 1, ...) of regex rules that match it
   txs_rulecheck <- reactive({
-    txs_dedup() |>
+    x <- 
+      txs_dedup() |>
       # Add a unique id to prevent unintended deduplication
       # (if user has not checked the box to combine identical descriptions)
       mutate(
-        .id = 1:n(),
-        .wt =	ifelse(input$select_weight == "(Unweighted)", 1, .data[[input$select_weight]])
-      ) |>
+        .id = 1:n()
+        # .wt =	ifelse(input$select_weight == "(Unweighted)", 1, .data[[input$select_weight]])
+      )
+    
+    if (input$select_weight == "(Unweighted)") {
+      x$.wt <- 1.0
+    } else {
+      x$.wt <- x[[input$select_weight]]      
+    }    
+    
+    x |> 
       # distinct(.data[[input$select_description]]) |>
       fuzzyjoin::regex_left_join(
         rules() |>
@@ -324,19 +312,32 @@ rules_table_module <- function(input, output, session) {
         .key = ifelse(is.na(.key), "NONE", .key)
       )
   })
-
+  
+  # Compute some overall metrics (not reactive to currently seleted rule)
+    overall_txs_matched <- reactive({
+      txs_rulecheck() |>
+        filter(.matches > 0) |>
+        pull(.wt) |>
+        sum(na.rm = TRUE)
+    })
+    
+    overall_txs_unmatched <- reactive({
+      txs_rulecheck() |>
+        filter(.matches == 0) |>
+        pull(.wt) |>
+        sum(na.rm = TRUE)
+    })
+    
+    overall_txs <- reactive({
+      txs_rulecheck() |>
+        pull(.wt) |>
+        sum(na.rm = TRUE)
+    })
+    
   # Update the gauge widget to show total rule coverage
   output$gauge_matched_total <- flexdashboard::renderGauge({
-    matched <- txs_rulecheck() |>
-      filter(.matches > 0) |>
-      pull(.wt) |>
-      sum(na.rm = TRUE)
-    total <- txs_rulecheck() |>
-      pull(.wt) |>
-      sum(na.rm = TRUE)
     flexdashboard::gauge(
-      100 * (matched / total),
-      # 100 * (nrow(filter(txs_rulecheck(), .matches > 0)) / nrow(txs_rulecheck())),
+      100 * (overall_txs_matched() / overall_txs()),
       min = 0,
       max = 100,
       symbol = "%",
@@ -352,7 +353,7 @@ rules_table_module <- function(input, output, session) {
 
   # Update the treemap plot to show categorized txs
   output$plot_treemap <- renderPlot({
-    print(txs_rulecheck())
+    #print(txs_rulecheck())
     txs_rulecheck() |>
       count(.key, wt = .wt) |>
       ggplot(aes(area = n, fill = n, label = .key)) +
@@ -363,49 +364,71 @@ rules_table_module <- function(input, output, session) {
 
   # Update the text outputs to print number of matched Descriptions out of total unique
   output$text_matched_total <- renderText({
-    matched <- txs_rulecheck() |>
-      filter(.matches > 0) |>
-      pull(.wt) |>
-      sum(na.rm = TRUE)
-    paste0("Txs with a matched rule: ", scales::comma(matched, accuracy = 1))
-    # paste0("Transactions with a matched rule: ", nrow(filter(txs_rulecheck(), .matches > 0)))
+    paste0("Txs with a matched rule: ", scales::comma(overall_txs_matched(), accuracy = 1))
   })
+  
   output$text_unmatched_total <- renderText({
-    unmatched <- txs_rulecheck() |>
-      filter(.matches == 0) |>
-      pull(.wt) |>
-      sum(na.rm = TRUE)
-    paste0("Txs without a matched rule: ", scales::comma(unmatched, accuracy = 1))
-    # paste0("Total transactions in data: ", nrow(txs_dedup()))
+    paste0("Txs without a matched rule: ", scales::comma(overall_txs_unmatched(), accuracy = 1))
   })
 
 
-  # Matched Tx Diagnostics ----
-
-
-
-  # Unmatched Tx Diagnostics ----
-
-
-  # DataTable outputs ----
-  # Print the matched & unmatched txs for selected rule
+  # Currently Matched Tx Diagnostics ----
+  # Make 'matched' tx df based on selected rule
+  # Count is conditional on choice of weighted or unweighted
+  current_txs_matched <- reactive({
+    x <- 
+      txs_dedup() |>
+      filter(grepl(rule_regex(), .data[[input$select_description]], ignore.case = TRUE))
+    # glimpse(x)
+    # print(x[[input$select_weight]])
+    # print(str(x[[input$select_weight]]))
+    
+    # x$.wt <- ifelse(input$select_weight == "(Unweighted)", rep(1.0, nrow(x)), x[[input$select_weight]])
+    if (input$select_weight == "(Unweighted)") {
+      x$.wt <- 1.0
+    } else {
+      x$.wt <- x[[input$select_weight]]      
+    }
+    # glimpse(x)
+    x <- 
+      x |> 
+      # mutate(
+      #   .wt =	ifelse(input$select_weight == "(Unweighted)", 1, .data[[input$select_weight]])
+      # ) |>
+      count(.data[[input$select_description]], wt = .wt, sort = TRUE) |>
+      mutate(pct = n / overall_txs())
+    # glimpse(x)
+    x
+  })  
+  # Print the matched txs for selected rule
   output$txs_matched <- renderDataTable(
-    txs_matched() |>
+    current_txs_matched() |>
       datatable(
         # rownames = FALSE,
         colnames = c("Description", "Count", '%'),
         selection = "none",
         class = "compact stripe row-border",
       ) |>
-      formatRound("n", digits = 0) |>
+      formatRound("n", digits = 2) |>
       formatPercentage("pct", digits = 0)
   )
+  
+  
+  # Unmatched Tx Diagnostics ----  
+  # txs_unmatched <- reactive({
+  #   txs_dedup() |>
+  #     filter(!grepl(rule_regex(), .data[[input$select_description]], ignore.case = TRUE)) |>
+  #     mutate(
+  #       .wt =	ifelse(input$select_weight == "(Unweighted)", 1, .data[[input$select_weight]])
+  #     ) |>
+  #     count(.data[[input$select_description]], wt = .wt, sort = TRUE) |>
+  #     mutate(pct = n / sum(n, na.rm = TRUE))
+  # })  
   output$txs_unmatched <- renderDataTable(
     txs_rulecheck() |> 
       filter(.matches == 0) |> 
       count(.data[[input$select_description]], wt = .wt, sort = TRUE) |>
-      mutate(pct = n / sum(n, na.rm = TRUE)) |> 
-    # txs_unmatched() |>
+      mutate(pct = n / overall_txs()) |> 
       datatable(
         # rownames = FALSE,
         colnames = c("Description", "Count", '%'),
