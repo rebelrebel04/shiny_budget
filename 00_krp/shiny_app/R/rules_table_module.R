@@ -19,9 +19,10 @@ rules_table_module_ui <- function(id) {
         titlePanel("Rules Data"),
         # tags$div(HTML("<i>Connected to 'rules' database</i>")),
         selectInput(
-          ns("select_dbtable"),
-          label = "Select database table for rules: ",
-          choices = c("rules")
+          ns("select_accounts"),
+          label = "Select accounts to test: ",
+          choices = c("test1", "test2"),
+          multiple = TRUE
         ),
         selectInput(
           ns("select_key"),
@@ -160,6 +161,41 @@ rules_table_module <- function(input, output, session) {
   session$userData$rules_trigger <- reactiveVal(0)
 
   # Rules DB Connection ####
+  # Get the name of the rules table configured for this db
+  rules_table <- db_config$rules_table
+
+  # Read in selected "rules" table from the database
+  accounts <- reactive({
+    session$userData$rules_trigger()
+
+    out <- NULL
+    tryCatch({
+      accounts_list <-
+        conn |>
+        tbl(rules_table) |>
+        # tbl(input$select_dbtable) |>
+        count(account) |>
+        collect() |>
+        pull(account)
+    }, error = function(err) {
+
+      msg <- "Database Connection Error"
+      # print `msg` so that we can find it in the logs
+      print(msg)
+      # print the actual error to log it
+      print(error)
+      # show error `msg` to user.  User can then tell us about error and we can
+      # quickly identify where it cam from based on the value in `msg`
+      showToast("error", msg)
+    })
+
+    accounts_list
+  })
+
+  observeEvent(accounts(), {
+    updateSelectInput(session, "select_accounts", choices = accounts())
+  })
+
   # Read in selected "rules" table from the database
   rules <- reactive({
     session$userData$rules_trigger()
@@ -168,7 +204,9 @@ rules_table_module <- function(input, output, session) {
     tryCatch({
       out <-
         conn |>
-        tbl(input$select_dbtable) |>
+        tbl(rules_table) |>
+        # tbl(input$select_dbtable) |>
+        filter(account %in% c(input$select_accounts)) |>
         collect() |>
         mutate(
           created_at = as.POSIXct(created_at, tz = "UTC"),
@@ -193,7 +231,7 @@ rules_table_module <- function(input, output, session) {
 
   # # Create a reactive variable to store currently selected rule ID
   # rule_uid_to_edit <- reactiveVal(NULL)
-  # 
+  #
   # # Make the uid reactive to the the selected key
   # observeEvent(input$select_key, {
   #   rules() |>
@@ -277,7 +315,7 @@ rules_table_module <- function(input, output, session) {
   # Overall diagnostics ----
   # For each description, compute the number (0, 1, ...) of regex rules that match it
   txs_rulecheck <- reactive({
-    x <- 
+    x <-
       txs_dedup() |>
       # Add a unique id to prevent unintended deduplication
       # (if user has not checked the box to combine identical descriptions)
@@ -285,14 +323,14 @@ rules_table_module <- function(input, output, session) {
         .id = 1:n()
         # .wt =	ifelse(input$select_weight == "(Unweighted)", 1, .data[[input$select_weight]])
       )
-    
+
     if (input$select_weight == "(Unweighted)") {
       x$.wt <- 1.0
     } else {
-      x$.wt <- x[[input$select_weight]]      
-    }    
-    
-    x |> 
+      x$.wt <- x[[input$select_weight]]
+    }
+
+    x |>
       # distinct(.data[[input$select_description]]) |>
       fuzzyjoin::regex_left_join(
         rules() |>
@@ -312,7 +350,7 @@ rules_table_module <- function(input, output, session) {
         .key = ifelse(is.na(.key), "NONE", .key)
       )
   })
-  
+
   # Compute some overall metrics (not reactive to currently seleted rule)
     overall_txs_matched <- reactive({
       txs_rulecheck() |>
@@ -320,20 +358,20 @@ rules_table_module <- function(input, output, session) {
         pull(.wt) |>
         sum(na.rm = TRUE)
     })
-    
+
     overall_txs_unmatched <- reactive({
       txs_rulecheck() |>
         filter(.matches == 0) |>
         pull(.wt) |>
         sum(na.rm = TRUE)
     })
-    
+
     overall_txs <- reactive({
       txs_rulecheck() |>
         pull(.wt) |>
         sum(na.rm = TRUE)
     })
-    
+
   # Update the gauge widget to show total rule coverage
   output$gauge_matched_total <- flexdashboard::renderGauge({
     flexdashboard::gauge(
@@ -366,7 +404,7 @@ rules_table_module <- function(input, output, session) {
   output$text_matched_total <- renderText({
     paste0("Txs with a matched rule: ", scales::comma(overall_txs_matched(), accuracy = 1))
   })
-  
+
   output$text_unmatched_total <- renderText({
     paste0("Txs without a matched rule: ", scales::comma(overall_txs_unmatched(), accuracy = 1))
   })
@@ -376,22 +414,22 @@ rules_table_module <- function(input, output, session) {
   # Make 'matched' tx df based on selected rule
   # Count is conditional on choice of weighted or unweighted
   current_txs_matched <- reactive({
-    x <- 
+    x <-
       txs_dedup() |>
       filter(grepl(rule_regex(), .data[[input$select_description]], ignore.case = TRUE))
     # glimpse(x)
     # print(x[[input$select_weight]])
     # print(str(x[[input$select_weight]]))
-    
+
     # x$.wt <- ifelse(input$select_weight == "(Unweighted)", rep(1.0, nrow(x)), x[[input$select_weight]])
     if (input$select_weight == "(Unweighted)") {
       x$.wt <- 1.0
     } else {
-      x$.wt <- x[[input$select_weight]]      
+      x$.wt <- x[[input$select_weight]]
     }
     # glimpse(x)
-    x <- 
-      x |> 
+    x <-
+      x |>
       # mutate(
       #   .wt =	ifelse(input$select_weight == "(Unweighted)", 1, .data[[input$select_weight]])
       # ) |>
@@ -399,7 +437,7 @@ rules_table_module <- function(input, output, session) {
       mutate(pct = n / overall_txs())
     # glimpse(x)
     x
-  })  
+  })
   # Print the matched txs for selected rule
   output$txs_matched <- renderDataTable(
     current_txs_matched() |>
@@ -412,9 +450,9 @@ rules_table_module <- function(input, output, session) {
       formatRound("n", digits = 2) |>
       formatPercentage("pct", digits = 0)
   )
-  
-  
-  # Unmatched Tx Diagnostics ----  
+
+
+  # Unmatched Tx Diagnostics ----
   # txs_unmatched <- reactive({
   #   txs_dedup() |>
   #     filter(!grepl(rule_regex(), .data[[input$select_description]], ignore.case = TRUE)) |>
@@ -423,19 +461,19 @@ rules_table_module <- function(input, output, session) {
   #     ) |>
   #     count(.data[[input$select_description]], wt = .wt, sort = TRUE) |>
   #     mutate(pct = n / sum(n, na.rm = TRUE))
-  # })  
+  # })
   output$txs_unmatched <- renderDataTable(
-    txs_rulecheck() |> 
-      filter(.matches == 0) |> 
+    txs_rulecheck() |>
+      filter(.matches == 0) |>
       count(.data[[input$select_description]], wt = .wt, sort = TRUE) |>
-      mutate(pct = n / overall_txs()) |> 
+      mutate(pct = n / overall_txs()) |>
       datatable(
         # rownames = FALSE,
         colnames = c("Description", "Count", '%'),
         selection = "none",
         class = "compact stripe row-border",
-      ) |> 
-      formatRound("n", digits = 0) |> 
+      ) |>
+      formatRound("n", digits = 0) |>
       formatPercentage("pct", digits = 0)
   )
 

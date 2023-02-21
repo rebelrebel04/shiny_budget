@@ -7,9 +7,9 @@ library(tibble)
 # rule = regex string
 # key = category (or whatever) to assign matching cases
 rules <- tribble(
-  ~key,         ~category,      ~subcategory,  ~expense_type,  ~tags,      ~rule,
-  "Vanguard",   "retirement",   "401k",        "expense",      "savings",  "vanguard",
-  "AT&T",       "utilities",    "mobile",      "expense",      "",         "att"      
+  ~account,                   ~key,         ~category,      ~subcategory,  ~expense_type,  ~tags,      ~rule,
+  "BayCoast Joint Checking",  "Vanguard",   "retirement",   "401k",        "expense",      "savings",  "vanguard",
+  "BayCoast Joint checking",  "AT&T",       "utilities",    "mobile",      "expense",      "",         "att"
 )
 rules
 saveRDS(rules, "./00_krp/data_prep/data/regex_tester/rules.RDS")
@@ -23,9 +23,9 @@ txs <- tibble(
   description = sample(c("vanguard", "interest", "att", "foo"), 100, replace = TRUE),
   amount = sample(10:1000, 100, replace = TRUE)
 )
-txs %>% 
-  count(description, sort = TRUE) %>% 
-  # count(description, wt = amount, sort = TRUE) %>%   
+txs %>%
+  count(description, sort = TRUE) %>%
+  # count(description, wt = amount, sort = TRUE) %>%
   ggplot(aes(area = n, fill = n, label = description)) +
   geom_treemap() +
   geom_treemap_text(fontface = "italic", colour = "gray", place = "centre", grow = FALSE) +

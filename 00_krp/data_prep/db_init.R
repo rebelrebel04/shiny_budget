@@ -13,6 +13,7 @@ conn <- dbConnect(
 # & the 4 created/modified columns
 create_rules_query = "CREATE TABLE rules (
   uid                             TEXT PRIMARY KEY,
+  account,                        TEXT,
   key                             TEXT,
   category                        TEXT,
   subcategory                     TEXT,
