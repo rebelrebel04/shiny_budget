@@ -165,36 +165,36 @@ rules_table_module <- function(input, output, session) {
   rules_table <- db_config$rules_table
 
   # Read in selected "rules" table from the database
-  accounts <- reactive({
-    session$userData$rules_trigger()
+  # accounts <- reactive({
+  #   session$userData$rules_trigger()
+  # 
+  #   out <- NULL
+  #   tryCatch({
+  #     accounts_list <-
+  #       conn |>
+  #       tbl(rules_table) |>
+  #       # tbl(input$select_dbtable) |>
+  #       count(account_name) |>
+  #       collect() |>
+  #       pull(account)
+  #   }, error = function(err) {
+  # 
+  #     msg <- "Database Connection Error"
+  #     # print `msg` so that we can find it in the logs
+  #     print(msg)
+  #     # print the actual error to log it
+  #     print(error)
+  #     # show error `msg` to user.  User can then tell us about error and we can
+  #     # quickly identify where it cam from based on the value in `msg`
+  #     showToast("error", msg)
+  #   })
+  # 
+  #   accounts_list
+  # })
 
-    out <- NULL
-    tryCatch({
-      accounts_list <-
-        conn |>
-        tbl(rules_table) |>
-        # tbl(input$select_dbtable) |>
-        count(account) |>
-        collect() |>
-        pull(account)
-    }, error = function(err) {
-
-      msg <- "Database Connection Error"
-      # print `msg` so that we can find it in the logs
-      print(msg)
-      # print the actual error to log it
-      print(error)
-      # show error `msg` to user.  User can then tell us about error and we can
-      # quickly identify where it cam from based on the value in `msg`
-      showToast("error", msg)
-    })
-
-    accounts_list
-  })
-
-  observeEvent(accounts(), {
-    updateSelectInput(session, "select_accounts", choices = accounts())
-  })
+  # observeEvent(accounts(), {
+  #   updateSelectInput(session, "select_accounts", choices = accounts())
+  # })
 
   # Read in selected "rules" table from the database
   rules <- reactive({
@@ -206,7 +206,7 @@ rules_table_module <- function(input, output, session) {
         conn |>
         tbl(rules_table) |>
         # tbl(input$select_dbtable) |>
-        filter(account %in% c(input$select_accounts)) |>
+        # filter(account %in% c(input$select_accounts)) |>
         collect() |>
         mutate(
           created_at = as.POSIXct(created_at, tz = "UTC"),
