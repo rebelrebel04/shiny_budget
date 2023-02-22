@@ -4,9 +4,7 @@ function(input, output, session) {
   # the Shiny application
   session$userData$email <- 'kurt.r.peters@gmail.com'
 
-  # Call the server function portion of the `cars_table_module.R` module file
-  callModule(
-    rules_table_module,
-    "rules_table"
-  )
+  # Call the server function portion of the module file
+  rules_table_server("rules_table")
+  
 }

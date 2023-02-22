@@ -6,6 +6,8 @@ fluidPage(
     h1("PEI Budget", align = 'left'),
     windowTitle = "PEI Budget"
   ),
-  rules_table_module_ui("rules_table")
+  # /// pretty sure this is where I can implement the tabbed nav
+  #     and then call the UI functions directly within each tab
+  rules_table_ui("rules_table")
 )
 
