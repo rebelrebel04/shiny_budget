@@ -29,7 +29,7 @@ baycoast <- function(x) {
     dplyr::mutate(transaction_number = 1:n()) |> 
     dplyr::ungroup() |> 
     dplyr::select(
-      account,
+      account_nickname,
       date,
       transaction_number,
       description,
