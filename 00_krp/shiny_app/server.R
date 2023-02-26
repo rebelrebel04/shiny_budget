@@ -4,10 +4,6 @@ function(input, output, session) {
   # the Shiny application
   session$userData$email <- 'kurt.r.peters@gmail.com'
 
-  # Call the server function portion of the module file
-  # rules_table_server("rules_table")
-  
-  
   # So: a server function doesn't need to be called directly as above
   # instead it should be treated like a gigantic reactive variable
   # that returns output that can render an output (or update an input)
@@ -15,6 +11,7 @@ function(input, output, session) {
   # example of just rendering an output directly
   # output$text <- renderPrint("hi there")
   
+  # ETL ####
   # The return from the etl_server module is a list of reactives
   etl_server_res <- etl_server("etl") #, stringsAsFactors = FALSE)
   # Render the loaded csv into the DT for review
@@ -24,5 +21,13 @@ function(input, output, session) {
     else 
       etl_server_res$etl_preproc()
   })
+  
+
+  # CATEGORIZE ####
+  # categorize_server_res <- categorize_server("categorize")
+  
+  
+  # ANALYZE ####
+    
   
 }

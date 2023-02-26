@@ -1,6 +1,6 @@
-#' Rules Table Module UI
+# Categorize Module UI
 #'
-#' The UI portion of the module for displaying the rules datatable
+#' The UI portion of the module for displaying the categorize UI
 #'
 #' @importFrom shiny NS tagList fluidRow column actionButton tags
 #' @importFrom DT DTOutput
@@ -10,14 +10,11 @@
 #'
 #' @return a \code{shiny::\link[shiny]{tagList}} containing UI elements
 #'
-rules_table_ui <- function(id) {
+categorize_ui <- function(id) {
   ns <- NS(id)
-
   tagList(
     sidebarLayout(
       sidebarPanel(
-        titlePanel("Rules Data"),
-        # tags$div(HTML("<i>Connected to 'rules' database</i>")),
         selectInput(
           ns("select_accounts"),
           label = "Select accounts to test: ",
@@ -57,7 +54,7 @@ rules_table_ui <- function(id) {
         ),
         tags$br(),
         tags$br(),
-
+        
         titlePanel("Transaction Data"),
         # tags$div(HTML("<i>Upload transaction data as csv</i>")),
         fileInput(
@@ -86,7 +83,7 @@ rules_table_ui <- function(id) {
           choices = "(Unweighted)"
         ),
         tags$br(),
-
+        
         actionButton(
           ns("cmd_apply"),
           "Apply & Save",
@@ -94,16 +91,8 @@ rules_table_ui <- function(id) {
           style = "color: #fff;",
           icon = icon('bolt')
         )
-
-        # tags$div(
-        #   class="btn-group", style="width: 75px;", role="group", 'aria-label'="Basic example",
-        #   tags$button(class="btn btn-primary btn-sm edit_btn", 'data-toggle'="tooltip", 'data-placement'="top", title="Edit", id = "4127d505-ea58-440b-b3e7-968ea77c2612", style="margin: 0", tags$i(class="fa fa-pencil-square-o")),
-        #   tags$button(class="btn btn-danger btn-sm delete_btn", 'data-toggle'="tooltip", 'data-placement'="top", title="Delete", id = "4127d505-ea58-440b-b3e7-968ea77c2612", style="margin: 0", tags$i(class="fa fa-trash-o"))
-        # )
-        # tags$br(),
-        # tags$br()
-      ),
-
+      ), #end sidebarPanel
+      
       mainPanel(
         fluidRow(
           column(
@@ -130,15 +119,12 @@ rules_table_ui <- function(id) {
             DTOutput(ns("txs_unmatched"))
           )
         )
-        # DTOutput(ns('rules_table')) |>
-        #   withSpinner()
-        # tags$br(),
-        # tags$br()
-      )
-    )
-    # tags$script(src = "rules_table_module.js"),
-    # tags$script(paste0("rules_table_module_js('", ns(''), "')"))
-  )
+      ) #end mainPanel
+      
+    ) #end sidebarLayout
+    
+  ) #end tagList
+      
 }
 
 #' Rules Table Module Server
@@ -155,7 +141,7 @@ rules_table_ui <- function(id) {
 #'
 #' @return None
 
-rules_table_server <- function(id) {
+categorize_server <- function(id) {
   
   moduleServer(
     id,

@@ -2,25 +2,33 @@
 etl_ui <- function(id) {
   ns <- NS(id)
   tagList(
-    fileInput(
-      ns("file_etl"),
-      label = "Upload transaction data (csv): ",
-      accept = ".csv"
-    ),
-    selectInput(
-      ns("select_preprocfun"),
-      label = "Preprocessing function: ",
-      choices = lsf.str(envir = preproc),
-      selected = "none"
-    ),
-    actionButton(
-      ns("cmd_etl_save"),
-      "Save",
-      class = "btn btn-success apply_btn",
-      style = "color: #fff;",
-      icon = icon('floppy-disk')
-    )
-  )
+    sidebarLayout(
+      sidebarPanel(
+        fileInput(
+          ns("file_etl"),
+          label = "Upload transaction data (csv): ",
+          accept = ".csv"
+        ),
+        selectInput(
+          ns("select_preprocfun"),
+          label = "Preprocessing function: ",
+          choices = lsf.str(envir = preproc),
+          selected = "none"
+        ),
+        actionButton(
+          ns("cmd_etl_save"),
+          "Save",
+          class = "btn btn-success apply_btn",
+          style = "color: #fff;",
+          icon = icon('floppy-disk')
+        )
+      ), #end sidebarPanel
+      
+      mainPanel(
+        dataTableOutput("etl_table")
+      )
+    ) #end sidebarLayout    
+  ) #end tagList
 }
 
 

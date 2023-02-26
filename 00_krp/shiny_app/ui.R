@@ -25,15 +25,16 @@ navbarPage(
     "Load",
     shinyFeedback::useShinyFeedback(),
     shinyjs::useShinyjs(),
-    sidebarLayout(
-      sidebarPanel(
-        etl_ui("etl") #, "User data (.csv format)")
-      ),
-      mainPanel(
-        # textOutput("text"),
-        dataTableOutput("etl_table")
-      )
-    ),
+    etl_ui("etl"), #, "User data (.csv format)")    
+    # sidebarLayout(
+    #   sidebarPanel(
+    #     etl_ui("etl") #, "User data (.csv format)")
+    #   ),
+    #   mainPanel(
+    #     # textOutput("text"),
+    #     dataTableOutput("etl_table")
+    #   )
+    # ),
     icon = icon("database")
   ),
 
@@ -49,15 +50,7 @@ navbarPage(
     "Categorize",
     shinyFeedback::useShinyFeedback(),
     shinyjs::useShinyjs(),
-    sidebarLayout(
-      sidebarPanel(
-        # rules_table_ui("rules_table")                
-      ),
-      mainPanel(
-        # textOutput("text"),
-        # dataTableOutput("table")
-      )
-    ),
+    categorize_ui("categorize"),
     icon = icon("shapes")
   ),
 
