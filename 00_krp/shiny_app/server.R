@@ -16,7 +16,7 @@ function(input, output, session) {
   # output$text <- renderPrint("hi there")
   
   # The return from the etl_server module is a list of reactives
-  etl_server_res <- etl_file_server("etl_file") #, stringsAsFactors = FALSE)
+  etl_server_res <- etl_server("etl") #, stringsAsFactors = FALSE)
   # Render the loaded csv into the DT for review
   output$etl_table <- renderDataTable({
     if (!is.null(etl_server_res$dup_txs())) 

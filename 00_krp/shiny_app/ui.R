@@ -27,7 +27,7 @@ navbarPage(
     shinyjs::useShinyjs(),
     sidebarLayout(
       sidebarPanel(
-        etl_file_ui("etl_file") #, "User data (.csv format)")
+        etl_ui("etl") #, "User data (.csv format)")
       ),
       mainPanel(
         # textOutput("text"),

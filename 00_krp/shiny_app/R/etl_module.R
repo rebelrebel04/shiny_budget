@@ -1,5 +1,5 @@
 # Module UI function
-etl_file_ui <- function(id) {
+etl_ui <- function(id) {
   ns <- NS(id)
   tagList(
     fileInput(
@@ -25,7 +25,7 @@ etl_file_ui <- function(id) {
 
 
 # Module server function
-etl_file_server <- function(id) {
+etl_server <- function(id) {
   moduleServer(
     id,
     ## Below is the module function
@@ -98,7 +98,7 @@ etl_file_server <- function(id) {
             dup_txs(tibble(dup_tx_ids = dups))
             toast_status <- list(
               type = "warning",            
-              msg = glue("{nrow(dup_txs)} non-unique records detected; see results table")
+              msg = glue("{length(dups)} non-unique records detected; see results table")
             )
             
           } else {
