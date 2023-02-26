@@ -1,5 +1,17 @@
 # Preprocessing functions: take an input df (from read.csv),
 # perform cleaning steps and return it
+# Canonical schema for fct_transactions is:
+# CREATE TABLE fct_transactions ( 
+#1  account_nickname TEXT NOT NULL, 
+#2  date TEXT NOT NULL, 
+#3  transaction_number INT, 
+#4  description TEXT, 
+#5  amount REAL NOT NULL, 
+#6  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, 
+#7  created_by TEXT, 
+#8  modified_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, 
+#9  modified_by TEXT )
+
 
 default <- function(x) {
   readr::read_csv(x, col_names = TRUE, name_repair = "universal")

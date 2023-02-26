@@ -6,15 +6,14 @@ library(dplyr)
 conn <- dbConnect(
   RSQLite::SQLite(),
   "00_krp/shiny_app/data/pei_budget.sqlite3"
-  #"01_traditional/shiny_app/data/mtcars.sqlite3"
 )
 
 # Create a query to prepare the 'mtcars' table with additional 'uid', 'id',
 # & the 4 created/modified columns
 create_rules_query = "CREATE TABLE rules (
   uid                             TEXT PRIMARY KEY,
-  institution,                    TEXT,
-  account_name,                   TEXT,
+  institution                     TEXT,
+  account_name                    TEXT,
   key                             TEXT,
   category                        TEXT,
   subcategory                     TEXT,

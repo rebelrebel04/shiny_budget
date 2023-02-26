@@ -14,14 +14,15 @@
 # https://shiny.rstudio.com/gallery/navbar-example.html
 navbarPage(
   "PEI Budget",
+
+    
+  # LOAD ####
+  # This tab lets the user 
+  # - upload a new transactions csv
+  # - choose the preprocessing function to clean it up
+  # - write (append) the transactions to fct_transactions    
   tabPanel(
     "Load",
-    
-    # This tab lets the user 
-    # - upload a new transactions csv
-    # - choose the preprocessing function to clean it up
-    # - write (append) the transactions to fct_transactions    
-    
     shinyFeedback::useShinyFeedback(),
     shinyjs::useShinyjs(),
     sidebarLayout(
@@ -35,21 +36,22 @@ navbarPage(
     ),
     icon = icon("database")
   ),
+
+    
+  # CATEGORIZE ####  
+  # This tab lets the user:
+  # - query fct_transactions (filter by: date range, account_nickname) & vis in a DT
+  # - test & visualize category rules, and thereby CRUD fct_rules
+  #   - NOTE: rule joins are NOT actually serialized here; the goal is just to 
+  #     qc the quality of the rules, and perform the joins at analysis time;
+  #     as a result, txs with multiple matching rules should be flagged
   tabPanel(
     "Categorize",
-    
-    # This tab lets the user:
-    # - query fct_transactions (filter by: date range, account_nickname) & vis in a DT
-    # - test & visualize category rules, and thereby CRUD fct_rules
-    #   - NOTE: rule joins are NOT actually serialized here; the goal is just to 
-    #     qc the quality of the rules, and perform the joins at analysis time;
-    #     as a result, txs with multiple matching rules should be flagged
-    
     shinyFeedback::useShinyFeedback(),
     shinyjs::useShinyjs(),
     sidebarLayout(
       sidebarPanel(
-        # csvFileUI("datafile", "User data (.csv format)")
+        # rules_table_ui("rules_table")                
       ),
       mainPanel(
         # textOutput("text"),
@@ -58,14 +60,15 @@ navbarPage(
     ),
     icon = icon("shapes")
   ),
+
+    
+  # ANALYZE ####  
+  # This tab lets the user:
+  # - query fct_transactions after joining on metdata (cats, tags, etc.) via fct_rules
+  #   - NOTE: only the `first` matching rule is applied if >1 matches
+  # - interactively visualize tx sums with different groupings/filters
   tabPanel(
     "Analyze",
-    
-    # This tab lets the user:
-    # - query fct_transactions after joining on metdata (cats, tags, etc.) via fct_rules
-    #   - NOTE: only the `first` matching rule is applied if >1 matches
-    # - interactively visualize tx sums with different groupings/filters
-    
     shinyFeedback::useShinyFeedback(),
     shinyjs::useShinyjs(),
     sidebarLayout(
@@ -79,5 +82,4 @@ navbarPage(
     ),
     icon = icon("chart-simple")
   )
-  # tabPanel("Component 3")
 )
