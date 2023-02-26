@@ -13,12 +13,12 @@ function(input, output, session) {
   # that returns output that can render an output (or update an input)
   
   # example of just rendering an output directly
-  output$text <- renderPrint("hi there")
+  # output$text <- renderPrint("hi there")
   
   # example of rendering an output as the return of a server module
-  datafile <- csvFileServer("datafile", stringsAsFactors = FALSE)
-  output$table <- renderDataTable({
-    datafile()
+  etl_file <- etl_file_server("etl_file") #, stringsAsFactors = FALSE)
+  output$etl_table <- renderDataTable({
+    etl_file()
   })
   
 }

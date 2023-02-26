@@ -6,18 +6,22 @@
 #2  date TEXT NOT NULL, 
 #3  transaction_number INT, 
 #4  description TEXT, 
-#5  amount REAL NOT NULL, 
-#6  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, 
-#7  created_by TEXT, 
-#8  modified_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, 
-#9  modified_by TEXT )
+#5  type TEXT,
+#6  amount REAL NOT NULL, 
+#7  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, 
+#8  created_by TEXT, 
+#9  modified_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, 
+#10 modified_by TEXT )
 
 
-default <- function(x) {
+none <- function(x) {
   readr::read_csv(x, col_names = TRUE, name_repair = "universal")
 }
 
-baycoast <- function(x) {
+# if other BC accounts are needed in future, could just refactor
+# a function factory that spawns off the account_nickname,
+# which is currently hardcoded here ("joint checking")
+bc_joint_checking <- function(x) {
   x <- 
     readr::read_csv(
       x,
@@ -25,21 +29,20 @@ baycoast <- function(x) {
       skip = 3, 
       col_names = TRUE,
       col_types = "ccccnnnnn",
-      name_repair = "universal"
+      name_repair = "universal",
+      show_col_types = FALSE      
     ) |> 
     tidyr::replace_na(list(Amount.Debit = 0, Amount.Credit = 0)) |>  
     tidyr::unite("description", Description, Memo, na.rm = TRUE) |> 
     dplyr::mutate(
-      account = "BayCoast Joint Checking",
-      date = as.Date(strptime(Date, format = "%m/%d/%Y")),
+      account_nickname = "BC Joint Checking",
+      date = paste(as.Date(strptime(Date, format = "%m/%d/%Y"))),
       # description = concat(Description, Memo),
       # Amount.Debit is negative, Amount.Credit is positive
       amount = abs(Amount.Debit + Amount.Credit),
-      type = ifelse(amount < 0, "debit", "credit")
+      type = ifelse(amount < 0, "debit", "credit"),
+      transaction_number = uuid::UUIDgenerate(n = n())
     ) |> 
-    dplyr::group_by(account, date) |> 
-    dplyr::mutate(transaction_number = 1:n()) |> 
-    dplyr::ungroup() |> 
     dplyr::select(
       account_nickname,
       date,

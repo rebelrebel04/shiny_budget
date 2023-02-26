@@ -9,7 +9,7 @@ conn <-
   dbConnect(
     RSQLite::SQLite(),
     # ":memory:" #testing
-    "00_krp/shiny_app/data/pei_budget.sqlite3" #prod
+    "00_krp/shiny_app/data/pei_budget_20230225.sqlite3" #prod
   )
 # dbplyr::src_memdb()
 dbListTables(conn)
@@ -60,18 +60,18 @@ schema_tables <-
 str(schema_tables, max.level = 1)
 
 
-# DIM & FCT TABLES ####
+# CREATE DIM & FCT TABLES ####
 # https://stackoverflow.com/questions/65004814/create-table-from-sql-statement-using-dplyr
 # Load all the dim & fct sheets as db tables with matching names
 db_dim_tables <- 
   dim_tables |> 
-  imap(\(x, idx) copy_to(conn, x, name = idx, overwrite = TRUE))
+  imap(\(x, idx) copy_to(conn, x, name = idx, overwrite = TRUE, temporary = FALSE))
 dbListTables(conn)
 db_dim_tables
 
 db_fct_tables <- 
   fct_tables |> 
-  imap(\(x, idx) copy_to(conn, x, name = idx, overwrite = TRUE))
+  imap(\(x, idx) copy_to(conn, x, name = idx, overwrite = TRUE, temporary = FALSE))
 dbListTables(conn)
 db_fct_tables
 

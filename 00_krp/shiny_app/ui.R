@@ -27,11 +27,11 @@ navbarPage(
     shinyjs::useShinyjs(),
     sidebarLayout(
       sidebarPanel(
-        csvFileUI("datafile", "User data (.csv format)")
+        etl_file_ui("etl_file") #, "User data (.csv format)")
       ),
       mainPanel(
-        textOutput("text"),
-        dataTableOutput("table")
+        # textOutput("text"),
+        dataTableOutput("etl_table")
       )
     ),
     icon = icon("database")
