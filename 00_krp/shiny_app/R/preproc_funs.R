@@ -4,27 +4,29 @@
 # CREATE TABLE fct_transactions ( 
 #1  account_nickname TEXT NOT NULL, 
 #2  date TEXT NOT NULL, 
-#3  transaction_number INT, 
-#4  description TEXT, 
-#5  type TEXT,
-#6  amount REAL NOT NULL, 
+#3  description TEXT, 
+#4  type TEXT,
+#5  amount REAL NOT NULL, 
+#6  transaction_id TEXT NOT NULL, 
 #7  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, 
 #8  created_by TEXT, 
 #9  modified_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, 
 #10 modified_by TEXT )
 
 
-none <- function(x) {
-  readr::read_csv(x, col_names = TRUE, name_repair = "universal")
+none <- function(csv_file, account_nickname = NULL) {
+  readr::read_csv(csv_file, col_names = TRUE, name_repair = "universal")
 }
 
 # if other BC accounts are needed in future, could just refactor
 # a function factory that spawns off the account_nickname,
 # which is currently hardcoded here ("joint checking")
-bc_joint_checking <- function(x) {
+# NOTE: the account_nickname arg must exactly match the options
+#       in fct_accounts
+bc_joint_checking <- function(csv_file, account_nickname = "BC Joint Checking") {
   x <- 
     readr::read_csv(
-      x,
+      csv_file,
       # "~/Downloads/BayCoast_raw_alltodate.csv", 
       skip = 3, 
       col_names = TRUE,
@@ -35,21 +37,25 @@ bc_joint_checking <- function(x) {
     tidyr::replace_na(list(Amount.Debit = 0, Amount.Credit = 0)) |>  
     tidyr::unite("description", Description, Memo, na.rm = TRUE) |> 
     dplyr::mutate(
-      account_nickname = "BC Joint Checking",
+      account_nickname = account_nickname,
       date = paste(as.Date(strptime(Date, format = "%m/%d/%Y"))),
       # description = concat(Description, Memo),
       # Amount.Debit is negative, Amount.Credit is positive
       amount = abs(Amount.Debit + Amount.Credit),
       type = ifelse(amount < 0, "debit", "credit"),
-      transaction_number = uuid::UUIDgenerate(n = n())
+      # transaction_id = uuid::UUIDgenerate(n = n())
+      # Compute the "unique" tx id as the concatenation of the fields
+      # that *should* make this tx unique -- if this *isn't* unique
+      # it will throw an error during ETL, so duplicate txs aren't appended
+      transaction_id = glue("{account_nickname}-{date}-{description}-{type}-{amount}")
     ) |> 
     dplyr::select(
       account_nickname,
       date,
-      transaction_number,
       description,
       type,
-      amount
+      amount,
+      transaction_id      
     )
   # readr::write_csv(x, "~/Desktop/Shiny budget app/BayCoast_preproc.csv")
   # glimpse(x)

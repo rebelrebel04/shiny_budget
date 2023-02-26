@@ -15,10 +15,14 @@ function(input, output, session) {
   # example of just rendering an output directly
   # output$text <- renderPrint("hi there")
   
-  # example of rendering an output as the return of a server module
-  etl_file <- etl_file_server("etl_file") #, stringsAsFactors = FALSE)
+  # The return from the etl_server module is a list of reactives
+  etl_server_res <- etl_file_server("etl_file") #, stringsAsFactors = FALSE)
+  # Render the loaded csv into the DT for review
   output$etl_table <- renderDataTable({
-    etl_file()
+    if (!is.null(etl_server_res$dup_txs())) 
+      etl_server_res$dup_txs()
+    else 
+      etl_server_res$etl_preproc()
   })
   
 }
