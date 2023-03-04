@@ -36,7 +36,6 @@ etl_ui <- function(id) {
 etl_server <- function(id) {
   moduleServer(
     id,
-    ## Below is the module function
     function(input, output, session) {
       
       # Make the raw txs df reactive to the uploaded csv      
@@ -85,10 +84,6 @@ etl_server <- function(id) {
               # filter(account_nickname == input$select_preprocfun) |> 
               select(transaction_id) |> 
               collect()
-            # res <- dbGetQuery(
-            #   conn,
-            #   glue("select * from fct_transactions where account_nickname = {input$select_preprocfun})")
-            # )
           }, error = function(err) {
             print(err)
             showToast("error", "Error querying records from database")

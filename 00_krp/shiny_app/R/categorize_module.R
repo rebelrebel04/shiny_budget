@@ -15,21 +15,38 @@ categorize_ui <- function(id) {
   tagList(
     sidebarLayout(
       sidebarPanel(
+        
+        titlePanel("Transactions"),      
+        # tags$div(HTML("<i>Upload transaction data as csv</i>")),        
+        dateRangeInput(
+          ns("select_date_range"),
+          label = "Select date range: "
+        ),
         selectInput(
-          ns("select_accounts"),
-          label = "Select accounts to test: ",
-          choices = c("test1", "test2"),
+          ns("select_account_nickname"),
+          label = "Select account to test: ",
+          choices = NULL,
           multiple = TRUE
         ),
+        checkboxInput(
+          ns("check_dedup"),
+          label = "Combine transactions with identical description fields"
+        ),
+        checkboxInput(
+          ns("check_weight"),
+          label = "Weight transactions by dollar amount"
+        ),
+        
+        titlePanel("Rules"),                
         selectInput(
-          ns("select_key"),
-          label = "Select a key to categorize transactions: ",
+          ns("select_rule_name"),
+          label = "Select a rule to categorize transactions: ",
           choices = NULL
         ),
-        textOutput(
-          ns("label_rule")
-        ),
-        tags$br(),
+        # textOutput(
+        #   ns("label_rule")
+        # ),
+        # tags$br(),
         actionButton(
           ns("cmd_edit_rule"),
           "Edit",
@@ -51,46 +68,17 @@ categorize_ui <- function(id) {
           style = "color: #fff;",
           icon = icon('plus')
           # width = '100%'
-        ),
-        tags$br(),
-        tags$br(),
-        
-        titlePanel("Transaction Data"),
-        # tags$div(HTML("<i>Upload transaction data as csv</i>")),
-        fileInput(
-          ns("file_txs"),
-          label = "Upload transaction data (csv): ",
-          accept = ".csv"
-        ),
-        selectInput(
-          ns("select_preprocfun"),
-          label = "Preprocessing function: ",
-          choices = c("(none)", lsf.str(envir = preproc)),
-          selected = "(none)"
-        ),
-        selectInput(
-          ns("select_description"),
-          label = "Description field to match: ",
-          choices = NULL,
-        ),
-        checkboxInput(
-          ns("check_dedup"),
-          label = "Combine transactions with identical description fields"
-        ),
-        selectInput(
-          ns("select_weight"),
-          label = "Weight (optional): ",
-          choices = "(Unweighted)"
-        ),
-        tags$br(),
-        
-        actionButton(
-          ns("cmd_apply"),
-          "Apply & Save",
-          class = "btn btn-success apply_btn",
-          style = "color: #fff;",
-          icon = icon('bolt')
         )
+
+        # tags$br(),
+        # 
+        # actionButton(
+        #   ns("cmd_apply"),
+        #   "Apply & Save",
+        #   class = "btn btn-success apply_btn",
+        #   style = "color: #fff;",
+        #   icon = icon('bolt')
+        # )
       ), #end sidebarPanel
       
       mainPanel(
@@ -127,6 +115,170 @@ categorize_ui <- function(id) {
       
 }
 
+
+
+categorize_server <- function(id) {
+  moduleServer(
+    id,
+    function(input, output, session) { 
+      
+      # Trigger to reload rules data
+      # session$userData$rules_trigger <- reactiveVal(0)
+      
+      # Query Rules data ####
+      # Lazy-load rules data (reactive to selected account)
+      rules <- reactive({
+        #session$userData$rules_trigger()
+        res <- NULL
+        tryCatch({
+          res <- 
+            conn |> 
+            tbl("fct_rules") |> 
+            collect() |> 
+            filter(account_nickname %in% input$select_account_nickname)
+            # filter(account_nickname == input$select_account_nickname)          
+        }, error = function(err) {
+          print(err)
+          showToast("error", "Error querying records from database")
+        })
+        # print(glimpse(res))
+        res
+      })
+      
+      # Update the rules dropdown if the rules df changes
+      observeEvent(rules(), {
+        updateSelectInput(
+          inputId = "select_rule_name",
+          choices = rules()$rule_name
+        )
+      })
+      
+      
+      # OnLoad ####
+      # Populate account_nickname selections
+      observe({
+        account_nicknames <- NULL
+        tryCatch({
+          # Grab the existing data in db for this account
+          account_nicknames <- 
+            conn |> 
+            tbl("fct_accounts") |> 
+            select(account_nickname) |> 
+            collect()
+        }, error = function(err) {
+          print(err)
+          showToast("error", "Error querying records from database")
+        })
+        updateSelectInput(
+          inputId = "select_account_nickname",
+          choices = account_nicknames
+        )
+        # Invalidate the rules trigger
+        #session$userData$rules_trigger(session$userData$rules_trigger() + 1)
+      })
+      
+      # Query Tx data ####
+      # Tx data will be reactive to:
+      # - select: date range
+      # - select: account nickname
+      # - check: dedup
+      txs_dedup <- reactive({
+        res <- NULL
+        tryCatch({
+          res <- 
+            conn |> 
+            tbl("fct_transactions") |> 
+            select(account_nickname, date, description, type, amount) |> 
+            collect() |> 
+            filter(account_nickname %in% input$select_account_nickname) |> 
+            filter(date >= input$select_date_range[1] & date <= input$select_date_range[2])
+        }, error = function(err) {
+          print(err)
+          showToast("error", "Error querying records from database")
+        })
+        # print(glimpse(res))
+        
+        # Optionally: Collapse txs with same 'description' field
+        # Will keep most recent date, and sum amounts
+        if (input$check_dedup) {
+          res <- 
+            res |> 
+            summarize(
+              .by = c(account_nickname, description, type),
+              date = last(date),
+              amount = sum(amount, na.rm = TRUE)
+            ) |> 
+            select(account_nickname, date, description, type, amount)
+        }
+        
+        res
+      })
+      
+      
+      
+      
+      # RENDER ####
+      output$txs_matched <- renderDataTable({
+        txs_dedup()
+      })
+      
+      
+      # MODALS ####
+      #TODO: user new serverModule logic to nest these modules properly
+      callModule(
+        rule_edit_module,
+        "add_rule",
+        modal_title = "Add Rule",
+        rule_to_edit = function() NULL,
+        modal_trigger = reactive({input$cmd_add_rule})
+      )
+      
+      rule_to_edit <- reactive({
+        rules() |>
+          filter(rule_name == input$select_rule_name)
+      })
+      
+      callModule(
+        rule_edit_module,
+        "edit_rule",
+        modal_title = "Edit Rule",
+        rule_to_edit = rule_to_edit,
+        modal_trigger = reactive({input$cmd_edit_rule})
+      )
+      
+      rule_to_delete <- reactive({
+        rules() |>
+          filter(rule_name == input$select_rule_name) |>
+          as.list()
+      })
+      
+      # rule_to_delete <- eventReactive(input$rule_id_to_delete, {
+      #   rules() |>
+      #     filter(uid == input$rule_id_to_delete) |>
+      #     as.list()
+      # })
+      
+      callModule(
+        rule_delete_module,
+        "delete_rule",
+        modal_title = "Delete Rule",
+        rule_to_delete = rule_to_delete,
+        modal_trigger = reactive({input$cmd_delete_rule})
+      )      
+
+            
+      # RETURN ####
+      return(list(
+        txs_dedup = txs_dedup
+      ))
+      
+    }
+  )
+}
+
+
+
+
 #' Rules Table Module Server
 #'
 #' The Server portion of the module for displaying the rules datatable
@@ -141,7 +293,7 @@ categorize_ui <- function(id) {
 #'
 #' @return None
 
-categorize_server <- function(id) {
+categorize_server_old <- function(id) {
   
   moduleServer(
     id,
@@ -468,7 +620,7 @@ categorize_server <- function(id) {
       )
       
       
-      # Modal Modules ----
+      # Modal Modules ####
       callModule(
         rule_edit_module,
         "add_rule",
@@ -479,7 +631,7 @@ categorize_server <- function(id) {
       
       rule_to_edit <- reactive({
         rules() |>
-          filter(key == input$select_key)
+          filter(key == input$select_rule_name)
       })
       
       callModule(
@@ -492,7 +644,7 @@ categorize_server <- function(id) {
       
       rule_to_delete <- reactive({
         rules() |>
-          filter(key == input$select_key) |>
+          filter(key == input$select_rule_name) |>
           as.list()
       })
       

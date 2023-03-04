@@ -31,18 +31,18 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
           column(
             width = 6,
             textInput(
-              ns("key"),
-              "Key",
-              value = ifelse(is.null(hold), "", hold$key)
+              ns("rule_name"),
+              "Rule Name",
+              value = ifelse(is.null(hold), "", hold$rule_name)
             )
           ),
           column(
             width = 6,
             selectInput(
-              ns("expense_type"),
+              ns("tx_type"),
               "Type",
               choices = c("expense", "income", "exclude"),
-              selected = ifelse(is.null(hold), "expense", hold$expense_type)
+              selected = ifelse(is.null(hold), "expense", hold$tx_type)
             )
           )
         ),
@@ -72,9 +72,9 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
           column(
             width = 6,
             textInput(
-              ns("rule"),
-              "Rule",
-              value = ifelse(is.null(hold), "", hold$rule)
+              ns("rule_regex"),
+              "Rule Regex",
+              value = ifelse(is.null(hold), "", hold$rule_regex)
             )
           ),
           column(
@@ -103,30 +103,30 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
 
     # Observe event for "Key" text input in Add/Edit Rule Modal
     # `shinyFeedback`
-    observeEvent(input$key, {
-      if (input$key == "") {
+    observeEvent(input$rule_name, {
+      if (input$rule_name == "") {
         shinyFeedback::showFeedbackDanger(
-          "key",
-          text = "Must enter a key!"
+          "rule_name",
+          text = "Must enter a rule name!"
         )
         shinyjs::disable('submit')
       } else {
-        shinyFeedback::hideFeedback("key")
+        shinyFeedback::hideFeedback("rule_name")
         shinyjs::enable('submit')
       }
     })
 
     # Observe event for "Rule" text input in Add/Edit Rule Modal
     # `shinyFeedback`
-    observeEvent(input$rule, {
-      if (input$rule == "") {
+    observeEvent(input$rule_regex, {
+      if (input$rule_regex == "") {
         shinyFeedback::showFeedbackDanger(
-          "rule",
+          "rule_regex",
           text = "Must enter a regex rule!"
         )
         shinyjs::disable('submit')
       } else {
-        shinyFeedback::hideFeedback("rule")
+        shinyFeedback::hideFeedback("rule_regex")
         shinyjs::enable('submit')
       }
     })

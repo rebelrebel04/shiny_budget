@@ -24,7 +24,10 @@ function(input, output, session) {
   
 
   # CATEGORIZE ####
-  # categorize_server_res <- categorize_server("categorize")
+  categorize_server_res <- categorize_server("categorize")
+  # output$txs_matched <- renderDataTable({
+  #   categorize_server_res$txs_dedup()
+  # })
   
   
   # ANALYZE ####

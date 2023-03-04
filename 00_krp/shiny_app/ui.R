@@ -26,15 +26,6 @@ navbarPage(
     shinyFeedback::useShinyFeedback(),
     shinyjs::useShinyjs(),
     etl_ui("etl"), #, "User data (.csv format)")    
-    # sidebarLayout(
-    #   sidebarPanel(
-    #     etl_ui("etl") #, "User data (.csv format)")
-    #   ),
-    #   mainPanel(
-    #     # textOutput("text"),
-    #     dataTableOutput("etl_table")
-    #   )
-    # ),
     icon = icon("database")
   ),
 
@@ -64,15 +55,7 @@ navbarPage(
     "Analyze",
     shinyFeedback::useShinyFeedback(),
     shinyjs::useShinyjs(),
-    sidebarLayout(
-      sidebarPanel(
-        # csvFileUI("datafile", "User data (.csv format)")
-      ),
-      mainPanel(
-        # textOutput("text"),
-        # dataTableOutput("table")
-      )
-    ),
+    # analyze_ui("analyze"),
     icon = icon("chart-simple")
   )
 )
