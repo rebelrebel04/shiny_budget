@@ -155,27 +155,25 @@ categorize_server <- function(id) {
       
       
       # OnLoad ####
+      valid_choices <- list()
       # Populate account_nickname selections
-      observe({
-        account_nicknames <- NULL
-        tryCatch({
-          # Grab the existing data in db for this account
-          account_nicknames <- 
-            conn |> 
-            tbl("fct_accounts") |> 
-            select(account_nickname) |> 
-            collect()
-        }, error = function(err) {
-          print(err)
-          showToast("error", "Error querying records from database")
-        })
-        updateSelectInput(
-          inputId = "select_account_nickname",
-          choices = account_nicknames
-        )
-        # Invalidate the rules trigger
-        #session$userData$rules_trigger(session$userData$rules_trigger() + 1)
+      valid_choices$account_nicknames <- NULL
+      tryCatch({
+        # Grab the existing data in db for this account
+        valid_choices$account_nicknames <- 
+          conn |> 
+          tbl("fct_accounts") |> 
+          select(account_nickname) |> 
+          collect()
+      }, error = function(err) {
+        print(err)
+        showToast("error", "Error querying records from database")
       })
+      updateSelectInput(
+        inputId = "select_account_nickname",
+        choices = valid_choices$account_nicknames
+      )
+
       
       # Query Tx data ####
       # Tx data will be reactive to:
@@ -225,12 +223,40 @@ categorize_server <- function(id) {
       
       # MODALS ####
       #TODO: user new serverModule logic to nest these modules properly
+      # For the dropdowns in the rules modal, pre-query DB to get the 
+      # valid choices for each field; note that account_nicknames was already pulled above
+
+      tryCatch({
+        # Grab the existing data in db for this account
+        valid_choices$tx_type <- 
+          conn |> 
+          tbl("dim_transaction_type") |> 
+          select(tx_type) |> 
+          collect()
+        valid_choices$category_name <- 
+          conn |> 
+          tbl("fct_categories") |> 
+          select(category_name) |> 
+          collect()
+        #TODO: make subcategory choices reactive to selected category
+        valid_choices$subcategory_name <- 
+          conn |> 
+          tbl("fct_subcategories") |> 
+          select(subcategory_name) |> 
+          collect()
+      }, error = function(err) {
+        print(err)
+        showToast("error", "Error querying records from database")
+      })
+      
+      
       callModule(
         rule_edit_module,
         "add_rule",
         modal_title = "Add Rule",
         rule_to_edit = function() NULL,
-        modal_trigger = reactive({input$cmd_add_rule})
+        modal_trigger = reactive({input$cmd_add_rule}),
+        valid_choices = valid_choices
       )
       
       rule_to_edit <- reactive({
@@ -243,7 +269,8 @@ categorize_server <- function(id) {
         "edit_rule",
         modal_title = "Edit Rule",
         rule_to_edit = rule_to_edit,
-        modal_trigger = reactive({input$cmd_edit_rule})
+        modal_trigger = reactive({input$cmd_edit_rule}),
+        valid_choices = valid_choices        
       )
       
       rule_to_delete <- reactive({

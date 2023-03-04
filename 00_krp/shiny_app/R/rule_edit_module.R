@@ -17,7 +17,7 @@
 #'
 #' @return None
 #'
-rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, modal_trigger) {
+rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, modal_trigger, valid_choices) {
   ns <- session$ns
 
   observeEvent(modal_trigger(), {
@@ -30,19 +30,17 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
         fluidRow(
           column(
             width = 6,
-            textInput(
-              ns("rule_name"),
-              "Rule Name",
-              value = ifelse(is.null(hold), "", hold$rule_name)
-            )
+            textOutput(
+              ns("account_nickname")
+            ),
           ),
           column(
             width = 6,
             selectInput(
               ns("tx_type"),
               "Type",
-              choices = c("expense", "income", "exclude"),
-              selected = ifelse(is.null(hold), "expense", hold$tx_type)
+              choices = valid_choices$tx_type,
+              selected = ifelse(is.null(hold), valid_choices$tx_type[1], hold$tx_type)
             )
           )
         ),
@@ -52,17 +50,17 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
           column(
             width = 6,
             textInput(
-              ns("category"),
-              "Category",
-              value = ifelse(is.null(hold), "", hold$category)
+              ns("rule_name"),
+              "Rule Name",
+              value = ifelse(is.null(hold), "", hold$rule_name)
             )
           ),
           column(
             width = 6,
             textInput(
-              ns("subcategory"),
-              "Subcategory",
-              value = ifelse(is.null(hold), "", hold$subcategory)
+              ns("rule_regex"),
+              "Rule Regex",
+              value = ifelse(is.null(hold), "", hold$rule_regex)
             )
           )
         ),
@@ -71,10 +69,32 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
         fluidRow(
           column(
             width = 6,
-            textInput(
-              ns("rule_regex"),
-              "Rule Regex",
-              value = ifelse(is.null(hold), "", hold$rule_regex)
+            selectInput(
+              ns("category_name"),
+              "Category",
+              choices = valid_choices$category_name,
+              selected = ifelse(is.null(hold), valid_choices$category_name[1], hold$category_name)
+            )
+          ),
+          column(
+            width = 6,
+            selectInput(
+              ns("subcategory_name"),
+              "Subcategory",
+              choices = valid_choices$subcategory_name
+              # selected = ifelse(is.null(hold), NULL, hold$subcategory_name)
+            )
+          )
+        ),
+        
+        # Row 4
+        fluidRow(
+          column(
+            width = 6,
+            numericInput(
+              ns("subscription_months"),
+              "Subscription months",
+              value = NULL
             )
           ),
           column(
@@ -86,6 +106,22 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
             )
           )
         ),
+        
+        # Row 5
+        fluidRow(
+          column(
+            width = 6,
+            textOutput(
+              ns("created_at")
+            )
+          ),
+          column(
+            width = 6,
+            textOutput(
+              ns("modified_at")
+            )
+          )
+        ),        
         
         title = modal_title,
         size = 'm',

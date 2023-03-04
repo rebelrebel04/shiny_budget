@@ -1,6 +1,6 @@
 default:
   app_name: "PEI Budget"
   db:
-    dbname: "data/pei_budget_20230225.sqlite3"
+    dbname: "data/pei_budget_20230304.sqlite3"
     rules_table: "rules"
   preproc_funs: "R/preproc_funs.R"
