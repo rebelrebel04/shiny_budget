@@ -17,8 +17,10 @@
 #'
 #' @return None
 #'
-rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, modal_trigger, valid_choices) {
+rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, modal_trigger, selected_accounts, valid_choices) {
   ns <- session$ns
+  
+  # print(valid_choices)
 
   observeEvent(modal_trigger(), {
     hold <- rule_to_edit()
@@ -30,8 +32,13 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
         fluidRow(
           column(
             width = 6,
-            textOutput(
-              ns("account_nickname")
+            selectInput(
+              ns("account_nickname"),
+              "Account",
+              # Passed in from categorize_module
+              # so choices reflect the currently selected accounts
+              choices = selected_accounts(),
+              selected = ifelse(is.null(hold), selected_accounts()[1], hold$account_nickname)              
             ),
           ),
           column(
@@ -81,8 +88,8 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
             selectInput(
               ns("subcategory_name"),
               "Subcategory",
-              choices = valid_choices$subcategory_name
-              # selected = ifelse(is.null(hold), NULL, hold$subcategory_name)
+              choices = "",
+              selected = hold$subcategory_name %||% ""
             )
           )
         ),
@@ -136,6 +143,17 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
         )
       )
     )
+    
+    # # Update the subcategory choices based on the selected category
+    observeEvent(input$category_name, {
+      updateSelectInput(
+        session = session,
+        inputId = "subcategory_name",
+        choices = valid_choices$subcategories |>
+          filter(category_name == input$category_name) |> 
+          pull(subcategory_name)
+      )
+    })
 
     # Observe event for "Key" text input in Add/Edit Rule Modal
     # `shinyFeedback`
@@ -174,14 +192,16 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
     hold <- rule_to_edit()
 
     out <- list(
-      uid = if (is.null(hold)) NA else hold$uid,
+      is_new = is.null(hold),
       data = list(
-        "key" = input$key,
-        "category" = input$category,
-        "subcategory" = input$subcategory,
-        "expense_type" = input$expense_type,
-        "tags" = input$tags,
-        "rule" = input$rule
+        "account_nickname" = input$account_nickname,
+        "rule_name" = input$rule_name,
+        "rule_regex" = input$rule_regex,
+        "category_name" = input$category_name,
+        "subcategory_name" = input$subcategory_name,
+        "tx_type" = input$tx_type,
+        "subscription_months" = input$subscription_months,
+        "tags" = input$tags        
       )
     )
 
@@ -189,12 +209,10 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
 
     if (is.null(hold)) {
       # adding a new rule
-
       out$data$created_at <- time_now
       out$data$created_by <- session$userData$email
     } else {
       # Editing existing rule
-
       out$data$created_at <- as.character(hold$created_at)
       out$data$created_by <- hold$created_by
     }
@@ -209,6 +227,10 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
     dat <- edit_rule_dat()
 
     # Logic to validate inputs...
+    # Ensure subscription_months is positive
+    dat$data$subscription_months <- abs(dat$data$subscription_months)
+    # Remove any whitespace from tags
+    dat$data$tags <- gsub(" ", "", dat$data$tags)
 
     dat
   })
@@ -219,16 +241,30 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
 
     tryCatch({
 
-      if (is.na(dat$uid)) {
+      if (dat$is_new) {
         # creating a new rule
-        uid <- uuid::UUIDgenerate()
-
+        # uid <- uuid::UUIDgenerate()
+        
+        # A tibble: 0 × 12
+        # … with 12 variables: account_nickname <chr>,
+        #   rule_name <chr>, rule_regex <chr>,
+        #   category_name <chr>, subcategory_name <chr>,
+        #   tx_type <chr>, subscription_months <dbl>,
+        #   tags <chr>, created_at <dbl>, created_by <chr>,
+        #   modified_at <dbl>, modified_by <chr>        
+        
         dbExecute(
           conn,
-          "INSERT INTO rules (uid, key, category, subcategory, expense_type, tags, rule, created_at, created_by, modified_at, modified_by) VALUES
-          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+          "INSERT INTO fct_rules (
+            account_nickname, rule_name, rule_regex, 
+            category_name, subcategory_name, 
+            tx_type, subscription_months, tags,
+            created_at, created_by,
+            modified_at, modified_by
+            ) VALUES
+          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
           params = c(
-            list(uid),
+            # list(uid),
             unname(dat$data)
           )
         )
@@ -236,12 +272,15 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
         # editing an existing rule
         dbExecute(
           conn,
-          "UPDATE rules SET key=$1, category=$2, subcategory=$3, expense_type=$4, tags=$5, rule=$6, created_at=$7, created_by=$8,
-          modified_at=$9, modified_by=$10 WHERE uid=$11",
-          params = c(
-            unname(dat$data),
-            list(dat$uid)
-          )
+          "UPDATE fct_rules SET 
+            rule_regex=$3,
+            category_name=$4, subcategory_name=$5, 
+            tx_type=$6, subscription_months=$7, tags=$8,
+            created_at=$9, created_by=$10,
+            modified_at=$11, modified_by=$12
+          WHERE
+            account_nickname=$1 AND rule_name=$2",
+          params = unname(dat$data)
         )
       }
 

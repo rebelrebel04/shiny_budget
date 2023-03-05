@@ -123,12 +123,13 @@ categorize_server <- function(id) {
     function(input, output, session) { 
       
       # Trigger to reload rules data
-      # session$userData$rules_trigger <- reactiveVal(0)
+      # needed if user adds a rule to db interactively
+      session$userData$rules_trigger <- reactiveVal(0)
       
       # Query Rules data ####
       # Lazy-load rules data (reactive to selected account)
       rules <- reactive({
-        #session$userData$rules_trigger()
+        session$userData$rules_trigger()
         res <- NULL
         tryCatch({
           res <- 
@@ -157,10 +158,10 @@ categorize_server <- function(id) {
       # OnLoad ####
       valid_choices <- list()
       # Populate account_nickname selections
-      valid_choices$account_nicknames <- NULL
+      valid_choices$account_nickname <- NULL
       tryCatch({
         # Grab the existing data in db for this account
-        valid_choices$account_nicknames <- 
+        valid_choices$account_nickname <- 
           conn |> 
           tbl("fct_accounts") |> 
           select(account_nickname) |> 
@@ -171,7 +172,7 @@ categorize_server <- function(id) {
       })
       updateSelectInput(
         inputId = "select_account_nickname",
-        choices = valid_choices$account_nicknames
+        choices = valid_choices$account_nickname
       )
 
       
@@ -238,11 +239,12 @@ categorize_server <- function(id) {
           tbl("fct_categories") |> 
           select(category_name) |> 
           collect()
-        #TODO: make subcategory choices reactive to selected category
-        valid_choices$subcategory_name <- 
+        # Pulling a df to get complete category*subcategory lookup
+        # Will filter to valid subcats based on selected cats within modals
+        valid_choices$subcategories <- 
           conn |> 
           tbl("fct_subcategories") |> 
-          select(subcategory_name) |> 
+          select(category_name, subcategory_name) |> 
           collect()
       }, error = function(err) {
         print(err)
@@ -256,7 +258,8 @@ categorize_server <- function(id) {
         modal_title = "Add Rule",
         rule_to_edit = function() NULL,
         modal_trigger = reactive({input$cmd_add_rule}),
-        valid_choices = valid_choices
+        valid_choices = valid_choices,
+        selected_accounts = reactive({input$select_account_nickname})         
       )
       
       rule_to_edit <- reactive({
@@ -270,7 +273,8 @@ categorize_server <- function(id) {
         modal_title = "Edit Rule",
         rule_to_edit = rule_to_edit,
         modal_trigger = reactive({input$cmd_edit_rule}),
-        valid_choices = valid_choices        
+        valid_choices = valid_choices,
+        selected_accounts = reactive({input$select_account_nickname}) 
       )
       
       rule_to_delete <- reactive({
