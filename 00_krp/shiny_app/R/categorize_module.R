@@ -30,11 +30,13 @@ categorize_ui <- function(id) {
         ),
         checkboxInput(
           ns("check_dedup"),
-          label = "Combine transactions with identical description fields"
+          label = "Combine transactions with identical description fields",
+          value = TRUE
         ),
         checkboxInput(
           ns("check_weight"),
-          label = "Weight transactions by dollar amount"
+          label = "Weight transactions by dollar amount",
+          value = TRUE
         ),
         
         titlePanel("Rules"),                
@@ -244,7 +246,7 @@ categorize_server <- function(id) {
             # by = setNames(".rule", input$select_description),
             ignore_case = TRUE
           ) |>
-          group_by(.wt, description) |> 
+          group_by(account_nickname, date, description, type, amount, .wt) |> 
           summarize(
             # compute the number of matching rules (zero or more) for each tx
             .matches = sum(purrr::map_int(.rule_name, \(x) ifelse(is.na(x), 0L, 1L))),
@@ -280,7 +282,47 @@ categorize_server <- function(id) {
           sum(na.rm = TRUE)
       })
       
-      # # Update the gauge widget to show total rule coverage
+      # Currently Matched Tx Diagnostics ----
+      # Make 'matched' tx df based on selected rule
+      # Count is conditional on choice of weighted or unweighted
+      current_txs_matched <- reactive({
+        # Get the currently selected rule
+        rule_regex <- 
+          rules() |> 
+          filter(rule_name == input$select_rule_name) |> 
+          pull(rule_regex)
+        # print(rule_regex)
+        
+        # Filter the currently selected txs to those matching the rule
+        x <-
+          txs_dedup() |>
+          # Can assume that "description" is canonical post-ETL
+          filter(grepl(rule_regex, description, ignore.case = TRUE))
+        # glimpse(x)
+
+        # Create the table: count txs (weighted, if checked) and % of total txs        
+        x <-
+          x |>
+          count(description, wt = .wt, sort = TRUE) |>
+          mutate(pct = n / overall_txs())
+        # glimpse(x)
+        x
+      })
+
+      # Get a df of all the remaining unmatched transactions
+      # (txs without any matching rules)
+      remaining_txs_unmatched <- reactive({
+        txs_rulecheck() |> 
+          filter(.matches == 0) |> 
+          # Create the table: count txs (weighted, if checked) and % of total txs        
+          count(description, wt = .wt, sort = TRUE) |>
+          mutate(pct = n / overall_txs())
+      })
+      
+      
+      # RENDER ####
+      
+      # Update the gauge widget to show total rule coverage
       output$gauge_matched_total <- flexdashboard::renderGauge({
         flexdashboard::gauge(
           100 * (overall_txs_matched() / overall_txs()),
@@ -317,41 +359,6 @@ categorize_server <- function(id) {
         paste0("Txs without a matched rule: ", scales::comma(overall_txs_unmatched(), accuracy = 1))
       })
       
-      
-      
-      # Currently Matched Tx Diagnostics ----
-      # Make 'matched' tx df based on selected rule
-      # Count is conditional on choice of weighted or unweighted
-      current_txs_matched <- reactive({
-        # Get the currently selected rule
-        rule_regex <- 
-          rules() |> 
-          filter(rule_name == input$select_rule_name) |> 
-          pull(rule_regex)
-        # print(rule_regex)
-        
-        # Filter the currently selected txs to those matching the rule
-        x <-
-          txs_dedup() |>
-          # Can assume that "description" is canonical post-ETL
-          filter(grepl(rule_regex, description, ignore.case = TRUE))
-        # glimpse(x)
-
-        # Create the table: count txs (weighted, if checked) and % of total txs        
-        x <-
-          x |>
-          count(description, wt = .wt, sort = TRUE) |>
-          mutate(pct = n / overall_txs())
-        # glimpse(x)
-        x
-      })
-      
-      
-      # RENDER ####
-      # output$txs_matched <- renderDataTable({
-      #   txs_dedup()
-      # })
-      
       # Print the matched txs for selected rule
       output$txs_matched <- renderDataTable(
         current_txs_matched() |>
@@ -365,8 +372,18 @@ categorize_server <- function(id) {
           formatPercentage("pct", digits = 0)
       )
       
-      
-      
+      # Print all remaining unmatched txs (regardless of selected rule)
+      output$txs_unmatched <- renderDataTable(
+        remaining_txs_unmatched() |> 
+          datatable(
+            # rownames = FALSE,
+            colnames = c("Description", "Count", '%'),
+            selection = "none",
+            class = "compact stripe row-border",
+          ) |>
+          formatRound("n", digits = 2) |>
+          formatPercentage("pct", digits = 0)
+      )
       
       
       # MODALS ####
@@ -429,12 +446,6 @@ categorize_server <- function(id) {
           filter(rule_name == input$select_rule_name) |>
           as.list()
       })
-      
-      # rule_to_delete <- eventReactive(input$rule_id_to_delete, {
-      #   rules() |>
-      #     filter(uid == input$rule_id_to_delete) |>
-      #     as.list()
-      # })
       
       callModule(
         rule_delete_module,
