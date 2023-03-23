@@ -9,7 +9,7 @@ conn <-
   dbConnect(
     RSQLite::SQLite(),
     # ":memory:" #testing
-    "00_krp/shiny_app/data/pei_budget_20230304.sqlite3" #prod
+    "00_krp/shiny_app/data/pei_budget_20230322.sqlite3" #prod
   )
 # dbplyr::src_memdb()
 dbListTables(conn)
