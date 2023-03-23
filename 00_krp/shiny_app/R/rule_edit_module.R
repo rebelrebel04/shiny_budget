@@ -155,7 +155,7 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
       )
     })
 
-    # Observe event for "Key" text input in Add/Edit Rule Modal
+    # Observe event for "Rule Name" text input in Add/Edit Rule Modal
     # `shinyFeedback`
     observeEvent(input$rule_name, {
       if (input$rule_name == "") {
@@ -170,7 +170,7 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
       }
     })
 
-    # Observe event for "Rule" text input in Add/Edit Rule Modal
+    # Observe event for "Rule Regex" text input in Add/Edit Rule Modal
     # `shinyFeedback`
     observeEvent(input$rule_regex, {
       if (input$rule_regex == "") {
@@ -191,19 +191,20 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
   edit_rule_dat <- reactive({
     hold <- rule_to_edit()
 
-    out <- list(
-      is_new = is.null(hold),
-      data = list(
-        "account_nickname" = input$account_nickname,
-        "rule_name" = input$rule_name,
-        "rule_regex" = input$rule_regex,
-        "category_name" = input$category_name,
-        "subcategory_name" = input$subcategory_name,
-        "tx_type" = input$tx_type,
-        "subscription_months" = input$subscription_months,
-        "tags" = input$tags        
+    out <- 
+      list(
+        is_new = is.null(hold),
+        data = list(
+          "account_nickname" = input$account_nickname,
+          "rule_name" = input$rule_name,
+          "rule_regex" = input$rule_regex,
+          "category_name" = input$category_name,
+          "subcategory_name" = input$subcategory_name,
+          "tx_type" = input$tx_type,
+          "subscription_months" = input$subscription_months,
+          "tags" = input$tags        
+        )
       )
-    )
 
     time_now <- as.character(lubridate::with_tz(Sys.time(), tzone = "UTC"))
 
@@ -238,6 +239,8 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
   observeEvent(validate_edit(), {
     removeModal()
     dat <- validate_edit()
+    
+    print(dat$data)
 
     tryCatch({
 
@@ -273,14 +276,14 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
         dbExecute(
           conn,
           "UPDATE fct_rules SET 
-            rule_regex=$3,
-            category_name=$4, subcategory_name=$5, 
-            tx_type=$6, subscription_months=$7, tags=$8,
-            created_at=$9, created_by=$10,
-            modified_at=$11, modified_by=$12
+            rule_regex=$rule_regex,
+            category_name=$category_name, subcategory_name=$subcategory_name, 
+            tx_type=$tx_type, subscription_months=$subscription_months, tags=$tags,
+            created_at=$created_at, created_by=$created_by,
+            modified_at=$modified_at, modified_by=$modified_by
           WHERE
-            account_nickname=$1 AND rule_name=$2",
-          params = unname(dat$data)
+            account_nickname=$account_nickname AND rule_name=$rule_name",
+          params = dat$data
         )
       }
 

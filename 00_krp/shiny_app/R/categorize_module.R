@@ -180,8 +180,7 @@ categorize_server <- function(id) {
       # Tx data will be reactive to:
       # - select: date range
       # - select: account nickname
-      # - check: dedup
-      txs_dedup <- reactive({
+      txs_query <- reactive({
         res <- NULL
         tryCatch({
           res <- 
@@ -197,6 +196,17 @@ categorize_server <- function(id) {
         })
         # print(glimpse(res))
         
+        res
+      })
+      
+      
+      # React to:
+      # - check: dedup
+      # - check: weight
+      txs_dedup <- reactive({
+        
+        res <- txs_query()
+        
         # Optionally: Collapse txs with same 'description' field
         # Will keep most recent date, and sum amounts
         if (input$check_dedup) {
@@ -210,16 +220,153 @@ categorize_server <- function(id) {
             select(account_nickname, date, description, type, amount)
         }
         
+        # Create a .wt variable for weighting          
+        # Can assume that "amount" is canonical post-ETL                  
+        if (input$check_weight) {
+          res$.wt <- res$amount
+        } else {
+          res$.wt <- 1.0          
+        }
+        
         res
+
+      })
+
+            
+      # Apply rules ####
+      # For each description, compute the number (0, 1, ...) of regex rules that match it
+      txs_rulecheck <- reactive({
+        txs_dedup() |>
+          fuzzyjoin::regex_left_join(
+            rules() |>
+              select(.rule_name = rule_name, .rule_regex = rule_regex),
+            by = c("description" = ".rule_regex"),
+            # by = setNames(".rule", input$select_description),
+            ignore_case = TRUE
+          ) |>
+          group_by(.wt, description) |> 
+          summarize(
+            # compute the number of matching rules (zero or more) for each tx
+            .matches = sum(purrr::map_int(.rule_name, \(x) ifelse(is.na(x), 0L, 1L))),
+            # also retain the first key matched, if any
+            .rule_name = first(.rule_name)
+          ) |>
+          ungroup() |>
+          mutate(
+            .rule_name = ifelse(is.na(.rule_name), "NONE", .rule_name)
+          )
       })
       
       
+      
+      # Compute some overall metrics (not reactive to currently seleted rule)
+      overall_txs_matched <- reactive({
+        txs_rulecheck() |>
+          filter(.matches > 0) |>
+          pull(.wt) |>
+          sum(na.rm = TRUE)
+      })
+      
+      overall_txs_unmatched <- reactive({
+        txs_rulecheck() |>
+          filter(.matches == 0) |>
+          pull(.wt) |>
+          sum(na.rm = TRUE)
+      })
+      
+      overall_txs <- reactive({
+        txs_rulecheck() |>
+          pull(.wt) |>
+          sum(na.rm = TRUE)
+      })
+      
+      # # Update the gauge widget to show total rule coverage
+      output$gauge_matched_total <- flexdashboard::renderGauge({
+        flexdashboard::gauge(
+          100 * (overall_txs_matched() / overall_txs()),
+          min = 0,
+          max = 100,
+          symbol = "%",
+          label = "% of transactions with at least 1 matching rule",
+          abbreviateDecimals = 0,
+          sectors = flexdashboard::gaugeSectors(
+            success = c(80, 100),
+            warning = c(30, 80),
+            danger = c(0, 30)
+          )
+        )
+      })
+
+      # Update the treemap plot to show categorized txs
+      output$plot_treemap <- renderPlot({
+        #print(txs_rulecheck())
+        txs_rulecheck() |>
+          count(.rule_name, wt = .wt) |>
+          ggplot(aes(area = n, fill = n, label = .rule_name)) +
+          treemapify::geom_treemap() +
+          treemapify::geom_treemap_text(fontface = "italic", colour = "gray", place = "centre", grow = FALSE) +
+          scale_fill_viridis_c(option = "B")
+      })
+
+      # Update the text outputs to print number of matched Descriptions out of total unique
+      output$text_matched_total <- renderText({
+        paste0("Txs with a matched rule: ", scales::comma(overall_txs_matched(), accuracy = 1))
+      })
+
+      output$text_unmatched_total <- renderText({
+        paste0("Txs without a matched rule: ", scales::comma(overall_txs_unmatched(), accuracy = 1))
+      })
+      
+      
+      
+      # Currently Matched Tx Diagnostics ----
+      # Make 'matched' tx df based on selected rule
+      # Count is conditional on choice of weighted or unweighted
+      current_txs_matched <- reactive({
+        # Get the currently selected rule
+        rule_regex <- 
+          rules() |> 
+          filter(rule_name == input$select_rule_name) |> 
+          pull(rule_regex)
+        # print(rule_regex)
+        
+        # Filter the currently selected txs to those matching the rule
+        x <-
+          txs_dedup() |>
+          # Can assume that "description" is canonical post-ETL
+          filter(grepl(rule_regex, description, ignore.case = TRUE))
+        # glimpse(x)
+
+        # Create the table: count txs (weighted, if checked) and % of total txs        
+        x <-
+          x |>
+          count(description, wt = .wt, sort = TRUE) |>
+          mutate(pct = n / overall_txs())
+        # glimpse(x)
+        x
+      })
       
       
       # RENDER ####
-      output$txs_matched <- renderDataTable({
-        txs_dedup()
-      })
+      # output$txs_matched <- renderDataTable({
+      #   txs_dedup()
+      # })
+      
+      # Print the matched txs for selected rule
+      output$txs_matched <- renderDataTable(
+        current_txs_matched() |>
+          datatable(
+            # rownames = FALSE,
+            colnames = c("Description", "Count", '%'),
+            selection = "none",
+            class = "compact stripe row-border",
+          ) |>
+          formatRound("n", digits = 2) |>
+          formatPercentage("pct", digits = 0)
+      )
+      
+      
+      
       
       
       # MODALS ####
