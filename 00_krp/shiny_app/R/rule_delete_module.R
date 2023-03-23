@@ -29,7 +29,7 @@ rule_delete_module <- function(input, output, session, modal_title, rule_to_dele
             style = "line-height: 1.75;",
             paste0(
               'Are you sure you want to delete the rule for "',
-              rule_to_delete()$key,
+              rule_to_delete()$rule_name,
               '"?'
             )
           )
@@ -56,12 +56,21 @@ rule_delete_module <- function(input, output, session, modal_title, rule_to_dele
 
     tryCatch({
 
-      uid <- rule_to_delete()$uid
+      # uid <- rule_to_delete()$uid
+      # DBI::dbExecute(
+      #   conn,
+      #   "DELETE FROM rules WHERE uid=$1",
+      #   params = c(uid)
+      # )
 
       DBI::dbExecute(
         conn,
-        "DELETE FROM rules WHERE uid=$1",
-        params = c(uid)
+        "DELETE FROM fct_rules WHERE account_nickname=$account_nickname AND rule_name=$rule_name",
+        params = 
+          c(
+            account_nickname = rule_to_delete()$account_nickname,
+            rule_name = rule_to_delete()$rule_name
+          )
       )
 
       session$userData$rules_trigger(session$userData$rules_trigger() + 1)
