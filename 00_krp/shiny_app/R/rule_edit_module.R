@@ -194,6 +194,8 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
     out <- 
       list(
         is_new = is.null(hold),
+        incoming_account_nickname = hold$account_nickname,
+        incoming_rule_name = hold$rule_name,
         data = list(
           "account_nickname" = input$account_nickname,
           "rule_name" = input$rule_name,
@@ -276,14 +278,20 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
         dbExecute(
           conn,
           "UPDATE fct_rules SET 
+            account_nickname=$account_nickname, rule_name=$rule_name,
             rule_regex=$rule_regex,
             category_name=$category_name, subcategory_name=$subcategory_name, 
             tx_type=$tx_type, subscription_months=$subscription_months, tags=$tags,
             created_at=$created_at, created_by=$created_by,
             modified_at=$modified_at, modified_by=$modified_by
           WHERE
-            account_nickname=$account_nickname AND rule_name=$rule_name",
-          params = dat$data
+            account_nickname=$incoming_account_nickname AND rule_name=$incoming_rule_name",
+          params = 
+            c(
+              dat$data, 
+              incoming_account_nickname = dat$incoming_account_nickname, 
+              incoming_rule_name = dat$incoming_rule_name
+            )
         )
       }
 

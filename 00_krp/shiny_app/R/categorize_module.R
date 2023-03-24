@@ -246,8 +246,8 @@ categorize_server <- function(id) {
             # by = setNames(".rule", input$select_description),
             ignore_case = TRUE
           ) |>
-          group_by(account_nickname, date, description, type, amount, .wt) |> 
           summarize(
+            .by = c(account_nickname, date, description, type, amount, .wt), 
             # compute the number of matching rules (zero or more) for each tx
             .matches = sum(purrr::map_int(.rule_name, \(x) ifelse(is.na(x), 0L, 1L))),
             # also retain the first key matched, if any
@@ -285,28 +285,32 @@ categorize_server <- function(id) {
       # Currently Matched Tx Diagnostics ----
       # Make 'matched' tx df based on selected rule
       # Count is conditional on choice of weighted or unweighted
-      current_txs_matched <- reactive({
-        # Get the currently selected rule
-        rule_regex <- 
+      # Get the currently selected rule
+      
+      rule_regex <- reactive({
+        selected_rule <- 
           rules() |> 
           filter(rule_name == input$select_rule_name) |> 
+          # just to be safe, although shouldn't be any dup rule_names
+          slice_head(n = 1) |> 
           pull(rule_regex)
-        # print(rule_regex)
-        
-        # Filter the currently selected txs to those matching the rule
-        x <-
-          txs_dedup() |>
-          # Can assume that "description" is canonical post-ETL
-          filter(grepl(rule_regex, description, ignore.case = TRUE))
-        # glimpse(x)
 
-        # Create the table: count txs (weighted, if checked) and % of total txs        
-        x <-
-          x |>
+        # If not rule currently selected, set to NA so below grepl returns        
+        if (length(selected_rule) == 0L)
+          selected_rule <- NA
+        
+        cli::cli_alert_info("selected_rule: {selected_rule}")
+        selected_rule
+      })
+      
+      # Filter the currently selected txs to those matching the rule      
+      current_txs_matched <- reactive({
+        txs_dedup() |>
+          # Can assume that "description" is canonical post-ETL
+          filter(grepl(rule_regex(), description, ignore.case = TRUE)) |> 
+          # Create the table: count txs (weighted, if checked) and % of total txs        
           count(description, wt = .wt, sort = TRUE) |>
           mutate(pct = n / overall_txs())
-        # glimpse(x)
-        x
       })
 
       # Get a df of all the remaining unmatched transactions
