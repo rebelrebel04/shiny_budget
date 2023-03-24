@@ -151,7 +151,8 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
         inputId = "subcategory_name",
         choices = valid_choices$subcategories |>
           filter(category_name == input$category_name) |> 
-          pull(subcategory_name)
+          pull(subcategory_name),
+        selected = hold$subcategory_name
       )
     })
 
@@ -242,7 +243,7 @@ rule_edit_module <- function(input, output, session, modal_title, rule_to_edit, 
     removeModal()
     dat <- validate_edit()
     
-    print(dat$data)
+    print(dat)
 
     tryCatch({
 
