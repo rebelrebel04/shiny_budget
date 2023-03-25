@@ -24,7 +24,7 @@ categorize_ui <- function(id) {
         ),
         selectInput(
           ns("select_account_nickname"),
-          label = "Select account to test: ",
+          label = "Select accounts to test: ",
           choices = NULL,
           multiple = TRUE
         ),

@@ -31,6 +31,6 @@ function(input, output, session) {
   
   
   # ANALYZE ####
-    
+  analyze_server_res <- analyze_server("analyze")  
   
 }

@@ -55,7 +55,7 @@ navbarPage(
     "Analyze",
     shinyFeedback::useShinyFeedback(),
     shinyjs::useShinyjs(),
-    # analyze_ui("analyze"),
+    analyze_ui("analyze"),
     icon = icon("chart-simple")
   )
 )
