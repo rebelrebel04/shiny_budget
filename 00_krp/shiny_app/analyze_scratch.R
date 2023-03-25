@@ -46,8 +46,7 @@ txs_joined |>
 # Category totals by month
 p <- 
   txs_joined |> 
-  filter(tx_type != "exclude") |> 
-  filter(tx_type != "expense") |> 
+  filter(tx_type == "expense") |> 
   mutate(
     # year = year(as.Date(date)),
     # month = month(as.Date(date)),
@@ -65,6 +64,7 @@ p <-
   geom_bar(stat = "identity") +  
   scale_fill_viridis_d(option = "C")
 p
+ggplotly(p)
   
   
   ggplot(aes(x = ym, y = amount, color = category_name)) +
@@ -74,8 +74,12 @@ p
   
 #theme_dark()
 plotly::ggplotly(p)
-  
 
+
+txs_joined |> 
+  mutate(date = as.Date(date)) |> 
+  arrange(date) |> 
+  View()
 
   
 # Net income by month

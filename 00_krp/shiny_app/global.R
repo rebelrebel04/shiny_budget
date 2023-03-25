@@ -9,12 +9,15 @@ library(shinycssloaders)
 library(lubridate)
 library(shinyFeedback)
 library(dplyr)
+library(purrr)
 library(glue)
 library(rlang)
 library(readr)
 library(tidyr)
 library(dbplyr)
 library(ggplot2)
+library(plotly)
+library(shinyWidgets)
 
 db_config <- config::get()$db
 
