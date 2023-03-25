@@ -1,6 +1,7 @@
 analyze_ui <- function(id) {
   ns <- NS(id)
   tagList(
+    tags$style(type = 'text/css', 'body { overflow-y: scroll; }'),
     sidebarLayout(
       sidebarPanel(
         
@@ -59,11 +60,40 @@ analyze_ui <- function(id) {
           choices = NULL,
           options = list("actions-box" = TRUE),
           multiple = TRUE
+        ),
+        checkboxInput(
+          ns("check_max_amount"),
+          label = "Exclude expenses with amount greater than:",
+          value = FALSE
+        ),
+        numericInput(
+          ns("numeric_max_amount"),
+          label = "",
+          value = 5000L,
+          min = 0L,
+          max = NA_integer_,
+          step = 500L,
+          width = "100px"
         )
       ), #end sidebarPanel
       
       mainPanel(
-        plotlyOutput(ns("plot_categories"))
+        fluidRow(
+          column(
+            12,
+            plotlyOutput(ns("plotly_categories"))
+          ),
+          column(
+            12,
+            plotlyOutput(ns("plotly_netincome"))        
+          ),
+          column(
+            12,
+            plotlyOutput(ns("plotly_tx_histogram"))        
+          )
+        )
+
+
         # dataTableOutput(ns("table"))
       ) #end mainPanel
       
@@ -91,7 +121,7 @@ analyze_server <- function(id) {
         print(err)
         showToast("error", "Error querying records from database")
       })
-      glimpse(rules)
+      # glimpse(rules)
       
       
       # OnLoad: Update inputs ####
@@ -156,17 +186,23 @@ analyze_server <- function(id) {
         print(err)
         showToast("error", "Error querying records from database")
       })
-      glimpse(txs_query)
+      # glimpse(txs_query)
 
             
       # Filter txs based on UI selections ####
       # Tx data will be reactive to:
       # - select: account nickname      
       # - select: date range
+      # - numeric: max amount
       txs_filtered <- reactive({
-        txs_query |> 
+        df <- 
+          txs_query |> 
           filter(account_nickname %in% input$select_account_nickname) |> 
           filter(date >= input$select_date_range[1] & date <= input$select_date_range[2])
+        # Optionally: exclude expenses (type=debit) above input max
+        if (input$check_max_amount)
+          df <- filter(df, !(type == "debit" & amount >= input$numeric_max_amount))
+        df
       })
       
       
@@ -202,25 +238,23 @@ analyze_server <- function(id) {
         txs_joined() |> 
           # Filter to selected categories & tags
           filter(category_name %in% input$select_category_name) |> 
-          filter(tags %in% input$select_tags)
+          filter(tags %in% input$select_tags) |> 
+          mutate(
+            ym = floor_date(as.Date(date), "months")
+          )
       })
       
       # OUTPUT ####
-      output$plot_categories <- renderPlotly({
+      output$plotly_categories <- renderPlotly({
         p <- 
           txs_analyze() |> 
           filter(tx_type == "expense") |> 
-          mutate(
-            ym = floor_date(as.Date(date), "months")
-          ) |> 
           summarize(
             .by = c(ym, category_name),
             amount = sum(amount, na.rm = TRUE)
           ) |> 
-          arrange(ym) |> 
           
           ggplot(aes(x = ym, y = amount, fill = category_name)) +
-          # geom_area() +
           geom_bar(stat = "identity") +  
           scale_fill_viridis_d("Category", option = "C") +
           scale_x_date("Month", date_labels = "%b-%y", date_breaks = "1 month") +
@@ -228,6 +262,50 @@ analyze_server <- function(id) {
           ggtitle("Monthly Expenses by Category")
         ggplotly(p)
       })
+      
+      output$plotly_netincome <- renderPlotly({
+        df <- 
+          txs_analyze() |> 
+          filter(tx_type %in% c("expense", "income")) |> 
+          mutate(
+            # make expenses negative
+            amount = ifelse(tx_type == "expense", -1 * amount, amount)
+          ) |> 
+          summarize(
+            .by = c(ym),
+            amount = sum(amount, na.rm = TRUE)
+          )
+          
+        p <- 
+          df |> 
+          ggplot(aes(x = ym, y = amount, fill = amount < 0)) +
+          geom_bar(stat = "identity") +  
+          scale_x_date("Month", date_labels = "%b-%y", date_breaks = "1 month") +
+          scale_y_continuous("Net Income", labels = scales::dollar) +
+          scale_fill_manual(values = c("lightgreen", "pink"), drop = FALSE) +
+          theme(legend.position = "none") +
+          ggtitle(glue("Monthly Net Income (Cumulative: {scales::dollar(sum(df$amount, na.rm = TRUE), accuracy = 1)})"))
+        ggplotly(p)
+      })
+      
+      output$plotly_tx_histogram <- renderPlotly({
+        p <- 
+          txs_analyze() |> 
+          filter(tx_type == "expense") |> 
+          mutate(
+            text = glue("{subcategory_name}\n{stringr::str_trunc(description, 25)}\n{scales::dollar(amount, accuracy = 1)}")
+          ) |> 
+          
+          ggplot(aes(x = log(amount), fill = category_name, text = text)) +
+          geom_histogram(bins = 30) +
+          scale_fill_viridis_d("Category", option = "C") +
+          xlab("") +
+          ylab("Count") +
+          ggtitle("Transaction Distribution (Log)")
+        # https://plotly-r.com/controlling-tooltips.html        
+        ggplotly(p, tooltip = c("fill", "text", "y"))        
+      })
+      
       
     }
   )

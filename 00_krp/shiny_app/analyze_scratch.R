@@ -43,7 +43,7 @@ glimpse(txs_joined)
 txs_joined |> 
   count(tx_type, wt = amount, sort = TRUE)
 
-# Category totals by month
+# category totals by month ####
 p <- 
   txs_joined |> 
   filter(tx_type == "expense") |> 
@@ -82,7 +82,7 @@ txs_joined |>
   View()
 
   
-# Net income by month
+# net income by month ####
 p <- 
   txs_joined |> 
   filter(tx_type != "exclude") |> 
@@ -99,9 +99,33 @@ p <-
   arrange(ym) |> 
   filter(ym >= as.Date("2022-09-01")) |> 
   
-  ggplot(aes(x = ym, y = amount)) +
+  ggplot(aes(x = ym, y = amount, fill = factor(amount > 0))) +
   # geom_area() +
-  geom_bar(stat = "identity") +  
-  scale_fill_viridis_d(option = "C")
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("pink", "lightgreen")) +
+  theme(legend.position = "none")
+  #scale_fill_viridis_d(option = "C")
 p
 plotly::ggplotly(p)
+
+
+# Tx distribution ####
+p <- 
+  txs_joined |> 
+  filter(tx_type == "expense") |> 
+  mutate(
+    text = glue("{subcategory_name}\n{stringr::str_trunc(description, 25)}\n{scales::dollar(amount, accuracy = 1)}")
+  ) |> 
+  
+  ggplot(aes(x = log(amount), fill = category_name, text = text)) +
+  geom_histogram(bins = 30) +
+  scale_fill_viridis_d("Category", option = "C") +
+  xlab("") +
+  ylab("Count") +
+  ggtitle("Transaction Distribution (Log)")
+
+p
+ggplotly(p, tooltip = c("fill", "text", "y"))
+  layout(
+    hovermode = "name"
+  )
